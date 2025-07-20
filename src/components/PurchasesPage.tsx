@@ -281,7 +281,7 @@ export function PurchasesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Purchase Tracking</h1>
+        <h1 className="text-3xl font-bold text-foreground">Purchases</h1>
         <p className="text-muted-foreground">Record your grocery shopping trips with multiple items</p>
       </div>
 
@@ -289,7 +289,7 @@ export function PurchasesPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            New Shopping Trip
+            Add purchase
           </CardTitle>
           <CardDescription>
             Set the date and add multiple items from your shopping trip
@@ -299,7 +299,7 @@ export function PurchasesPage() {
           {/* Date and Market Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center gap-4">
-              <label className="text-sm font-medium">Shopping Date:</label>
+              <label className="text-sm font-medium whitespace-nowrap">Purchase date:</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -392,7 +392,7 @@ export function PurchasesPage() {
 
           {/* Add Item Form */}
           <div className="border rounded-lg p-4 bg-secondary/20">
-            <h3 className="font-medium mb-4">Add Item to Shopping Trip</h3>
+            <h3 className="font-medium mb-4">Add item to purchase</h3>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="relative">
                 <Select 
@@ -546,14 +546,14 @@ export function PurchasesPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
-            Recent Shopping Trips ({purchases.length})
+            Recent purchases ({purchases.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {purchases.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No shopping trips recorded yet. Add your first purchase above!</p>
+              <p>No purchases recorded yet. Add the first purchase above.</p>
             </div>
           ) : (
             <div className="space-y-4">

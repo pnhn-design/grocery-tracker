@@ -230,8 +230,8 @@ export function Dashboard() {
         {/* Daily Spending */}
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle>Daily Spending (Last 30 Days)</CardTitle>
-            <CardDescription>Your spending patterns over time</CardDescription>
+            <CardTitle>Daily spending</CardTitle>
+            <CardDescription>Your spending patterns on over the past 30 days.</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -256,11 +256,10 @@ export function Dashboard() {
 
         {/* Monthly spending with navigator */}
         <Card className="shadow-soft">
-          <CardHeader>
+          <CardHeader className="pb-6">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Monthly Spending</CardTitle>
-                <CardDescription>Daily spending for {format(currentMonth, 'MMMM yyyy')}</CardDescription>
+                <CardTitle>Monthly spending</CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -308,8 +307,8 @@ export function Dashboard() {
         {/* Top Spending Items */}
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle>Top Spending Items</CardTitle>
-            <CardDescription>Items you spend the most on</CardDescription>
+            <CardTitle>Top spending</CardTitle>
+            <CardDescription>Items you're spending the most on.</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -344,24 +343,26 @@ export function Dashboard() {
         {/* Price Progression */}
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Price Progression
-            </CardTitle>
-            <CardDescription>
-              <Select value={selectedItem} onValueChange={setSelectedItem}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select an item to see price progression" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardDescription>
+            <div className="flex flex-col gap-4">
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Price progression
+              </CardTitle>
+              <CardDescription>
+                <Select value={selectedItem} onValueChange={setSelectedItem}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select an item to see price progression" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {items.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             {priceProgression.length > 0 ? (
@@ -392,7 +393,7 @@ export function Dashboard() {
               <div className="flex items-center justify-center h-[300px] text-muted-foreground">
                 <div className="text-center">
                   <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Select an item to see price progression</p>
+                  <p>Select an item to see its price progression.</p>
                 </div>
               </div>
             )}

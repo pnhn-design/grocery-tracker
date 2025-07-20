@@ -80,7 +80,7 @@ export function ItemsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            Add New Item
+            Add new item
           </CardTitle>
           <CardDescription>
             Add items to your grocery database to track purchases
