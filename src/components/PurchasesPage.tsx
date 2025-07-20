@@ -9,6 +9,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { Store } from 'lucide-react';
 
 interface GroceryItem {
   id: string;
@@ -446,9 +448,14 @@ export function PurchasesPage() {
                 Total: €{quantity && unitPrice ? (parseInt(quantity || '0') * parseFloat(unitPrice || '0')).toFixed(2) : '0.00'}
               </div>
 
-              <Button onClick={addItemToCurrentPurchase} variant="success" className="w-full">
+              <Button 
+                onClick={addItemToCurrentPurchase} 
+                variant="success" 
+                className="w-full"
+                disabled={!(selectedItemId && quantity && unitPrice)}
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Item
+                Add to purchase
               </Button>
             </div>
 
@@ -501,7 +508,11 @@ export function PurchasesPage() {
           {currentItems.length > 0 && (
             <div className="border rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-medium">Items in Current Purchase</h3>
+                <h3 className="font-medium">
+                  {selectedMarketId && markets.find(m => m.id === selectedMarketId)?.name
+                    ? `Your purchase from ${markets.find(m => m.id === selectedMarketId)?.name}`
+                    : 'Your purchase'}
+                </h3>
                 <span className="text-lg font-semibold text-primary">
                   Total: €{currentTotal.toFixed(2)}
                 </span>
@@ -534,7 +545,7 @@ export function PurchasesPage() {
               <div className="mt-4 flex justify-end">
                 <Button onClick={savePurchase} variant="gradient" size="lg">
                   <ShoppingCart className="h-4 w-4 mr-2" />
-                  Save Shopping Trip (€{currentTotal.toFixed(2)})
+                  {`Save purchase (€${currentTotal.toFixed(2)})`}
                 </Button>
               </div>
             </div>
@@ -562,19 +573,23 @@ export function PurchasesPage() {
                   key={purchase.id}
                   className="border rounded-lg p-4 bg-background hover:shadow-soft transition-all"
                 >
+                  {/* Title and badges */}
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h3 className="font-medium text-foreground">
-                        Shopping Trip - {format(new Date(purchase.date), "PPP")}
-                        {purchase.marketName && (
-                          <span className="text-sm text-muted-foreground ml-2">
-                            at {purchase.marketName}
-                          </span>
-                        )}
+                        {format(new Date(purchase.date), "PPP")}
                       </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {purchase.items.length} item{purchase.items.length !== 1 ? 's' : ''}
-                      </p>
+                      <div className="flex items-center mt-1" style={{ gap: 6 }}>
+                        {purchase.marketName && (
+                          <Badge variant="secondary" className="bg-muted text-muted-foreground font-normal flex items-center gap-1">
+                            <Store className="h-3 w-3 mr-1" />
+                            {purchase.marketName}
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground font-normal">
+                          {purchase.items.length} item{purchase.items.length !== 1 ? 's' : ''}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xl font-semibold text-primary">
@@ -590,7 +605,7 @@ export function PurchasesPage() {
                       </Button>
                     </div>
                   </div>
-                  
+                  {/* Items grid remains unchanged */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {purchase.items.map((item, index) => (
                       <div key={index} className="text-sm bg-secondary/30 rounded p-2">

@@ -256,25 +256,26 @@ export function Dashboard() {
 
         {/* Monthly spending with navigator */}
         <Card className="shadow-soft">
-          <CardHeader className="pb-6">
-            <div className="flex items-center justify-between">
-              <div>
+          <CardHeader>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col space-y-1.5">
                 <CardTitle>Monthly spending</CardTitle>
+                <CardDescription>Your monthly spending on groceries.</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 ml-4">
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="icon"
                   onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-medium min-w-[100px] text-center">
+                <span className="text-sm font-medium min-w-[80px] text-center">
                   {format(currentMonth, 'MMM yyyy')}
                 </span>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="icon"
                   onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                   disabled={currentMonth >= new Date()}
                 >
