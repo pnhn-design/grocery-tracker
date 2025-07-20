@@ -16,6 +16,7 @@ export function MarketsPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [newMarketName, setNewMarketName] = useState('');
   const [newMarketLocation, setNewMarketLocation] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // Search bar state
   const { toast } = useToast();
 
   useEffect(() => {
@@ -115,6 +116,14 @@ export function MarketsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Search Bar */}
+          <div className="mb-4">
+            <Input
+              placeholder="Search markets..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
           {markets.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Store className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -122,33 +131,39 @@ export function MarketsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {markets.map((market) => (
-                <div
-                  key={market.id}
-                  className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all animate-fade-in"
-                >
-                  <div className="flex items-center gap-3">
-                    <Store className="h-5 w-5 text-primary" />
-                    <div>
-                      <h3 className="font-medium text-foreground">{market.name}</h3>
-                      {market.location && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {market.location}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteMarket(market.id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 hover-scale"
+              {markets
+                .filter((market) => {
+                  const words = market.name.toLowerCase().split(/\s+/);
+                  const query = searchQuery.toLowerCase();
+                  return words.some(word => word.startsWith(query));
+                })
+                .map((market) => (
+                  <div
+                    key={market.id}
+                    className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all animate-fade-in"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3">
+                      <Store className="h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-medium text-foreground">{market.name}</h3>
+                        {market.location && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {market.location}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteMarket(market.id)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 hover-scale"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
             </div>
           )}
         </CardContent>

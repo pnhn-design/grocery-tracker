@@ -16,6 +16,7 @@ export function ItemsPage() {
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // Search bar state
   const { toast } = useToast();
 
   useEffect(() => {
@@ -115,6 +116,14 @@ export function ItemsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Search Bar */}
+          <div className="mb-4">
+            <Input
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
           {items.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -122,27 +131,33 @@ export function ItemsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
-                >
-                  <div>
-                    <h3 className="font-medium text-foreground">{item.name}</h3>
-                    {item.category && (
-                      <p className="text-sm text-muted-foreground">{item.category}</p>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteItem(item.id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              {items
+                .filter((item) => {
+                  const words = item.name.toLowerCase().split(/\s+/);
+                  const query = searchQuery.toLowerCase();
+                  return words.some(word => word.startsWith(query));
+                })
+                .map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                    <div>
+                      <h3 className="font-medium text-foreground">{item.name}</h3>
+                      {item.category && (
+                        <p className="text-sm text-muted-foreground">{item.category}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteItem(item.id)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
             </div>
           )}
         </CardContent>
