@@ -72,7 +72,7 @@ export function ItemsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Grocery Items</h1>
+        <h1 className="text-3xl font-bold text-foreground">Items</h1>
         <p className="text-muted-foreground">Manage your grocery item database</p>
       </div>
 
