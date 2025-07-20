@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { ShoppingCart, Package, BarChart3, Plus } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Items', href: '/items', icon: Package },
+  { name: 'Markets', href: '/markets', icon: Store },
   { name: 'Purchases', href: '/purchases', icon: ShoppingCart },
 ];
 

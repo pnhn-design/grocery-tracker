@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, TrendingUp, Calendar, DollarSign, Package } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isSameDay } from 'date-fns';
+import { BarChart3, TrendingUp, Calendar, DollarSign, Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, parseISO, addMonths, subMonths } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -31,6 +32,7 @@ export function Dashboard() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [selectedItem, setSelectedItem] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   useEffect(() => {
     const savedPurchases = localStorage.getItem('grocery-purchases');
@@ -97,21 +99,27 @@ export function Dashboard() {
       .slice(-30); // Last 30 days
   }, [purchases]);
 
-  // Monthly spending data
+  // Monthly spending data with current month filter
   const monthlySpending = useMemo(() => {
-    const grouped = purchases.reduce((acc, purchase) => {
-      const month = format(parseISO(purchase.date), 'yyyy-MM');
-      acc[month] = (acc[month] || 0) + purchase.totalAmount;
+    const currentMonthKey = format(currentMonth, 'yyyy-MM');
+    const monthPurchases = purchases.filter(purchase => {
+      const purchaseMonth = format(parseISO(purchase.date), 'yyyy-MM');
+      return purchaseMonth === currentMonthKey;
+    });
+
+    const dailyData = monthPurchases.reduce((acc, purchase) => {
+      const day = format(parseISO(purchase.date), 'dd');
+      acc[day] = (acc[day] || 0) + purchase.totalAmount;
       return acc;
     }, {} as Record<string, number>);
 
-    return Object.entries(grouped)
-      .map(([month, amount]) => ({
-        month: format(parseISO(month + '-01'), 'MMM yyyy'),
+    return Object.entries(dailyData)
+      .map(([day, amount]) => ({
+        day: `${day}`,
         amount: Number(amount.toFixed(2))
       }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
-  }, [purchases]);
+      .sort((a, b) => parseInt(a.day) - parseInt(b.day));
+  }, [purchases, currentMonth]);
 
   // Top spending items
   const topSpendingItems = useMemo(() => {
@@ -182,7 +190,7 @@ export function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">${totalSpent.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-primary">€{totalSpent.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -192,7 +200,7 @@ export function Dashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-accent">${currentMonthSpending.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-accent">€{currentMonthSpending.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -202,7 +210,7 @@ export function Dashboard() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">${averagePerPurchase.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-success">€{averagePerPurchase.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -232,7 +240,7 @@ export function Dashboard() {
                 <XAxis dataKey="date" fontSize={12} />
                 <YAxis fontSize={12} />
                 <Tooltip 
-                  formatter={(value) => [`$${value}`, 'Amount']}
+                  formatter={(value) => [`€${value}`, 'Amount']}
                   labelStyle={{ color: 'hsl(var(--foreground))' }}
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
@@ -246,20 +254,44 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Monthly Spending */}
+        {/* Monthly spending with navigator */}
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle>Monthly Spending</CardTitle>
-            <CardDescription>Monthly spending trends</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Monthly Spending</CardTitle>
+                <CardDescription>Daily spending for {format(currentMonth, 'MMMM yyyy')}</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-medium min-w-[100px] text-center">
+                  {format(currentMonth, 'MMM yyyy')}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                  disabled={currentMonth >= new Date()}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlySpending}>
+              <BarChart data={monthlySpending}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="month" fontSize={12} />
+                <XAxis dataKey="day" fontSize={12} />
                 <YAxis fontSize={12} />
                 <Tooltip 
-                  formatter={(value) => [`$${value}`, 'Amount']}
+                  formatter={(value) => [`€${value}`, 'Amount']}
                   labelStyle={{ color: 'hsl(var(--foreground))' }}
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
@@ -267,14 +299,8 @@ export function Dashboard() {
                     borderRadius: '8px'
                   }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="amount" 
-                  stroke="hsl(45, 93%, 47%)" 
-                  strokeWidth={3}
-                  dot={{ fill: 'hsl(45, 93%, 47%)', strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
+                <Bar dataKey="amount" fill="hsl(45, 93%, 47%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -295,7 +321,7 @@ export function Dashboard() {
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="amount"
-                  label={({ name, value }) => `${name}: $${value}`}
+                  label={({ name, value }) => `${name}: €${value}`}
                   labelLine={false}
                 >
                   {topSpendingItems.slice(0, 5).map((entry, index) => (
@@ -303,7 +329,7 @@ export function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip 
-                  formatter={(value) => [`$${value}`, 'Total Spent']}
+                  formatter={(value) => [`€${value}`, 'Total Spent']}
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
                     border: '1px solid hsl(var(--border))',
@@ -345,7 +371,7 @@ export function Dashboard() {
                   <XAxis dataKey="date" fontSize={12} />
                   <YAxis fontSize={12} />
                   <Tooltip 
-                    formatter={(value) => [`$${value}`, 'Price']}
+                    formatter={(value) => [`€${value}`, 'Price']}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--card))', 
@@ -391,7 +417,7 @@ export function Dashboard() {
                     </div>
                     <span className="font-medium">{item.name}</span>
                   </div>
-                  <span className="text-lg font-semibold text-primary">${item.amount.toFixed(2)}</span>
+                  <span className="text-lg font-semibold text-primary">€{item.amount.toFixed(2)}</span>
                 </div>
               ))}
             </div>

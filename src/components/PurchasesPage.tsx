@@ -14,6 +14,7 @@ interface GroceryItem {
   id: string;
   name: string;
   category?: string;
+  createdAt: string;
 }
 
 interface PurchaseItem {
@@ -27,15 +28,25 @@ interface PurchaseItem {
 interface Purchase {
   id: string;
   date: string;
+  marketId?: string;
+  marketName?: string;
   items: PurchaseItem[];
   totalAmount: number;
   createdAt: string;
 }
 
+interface Market {
+  id: string;
+  name: string;
+  location?: string;
+}
+
 export function PurchasesPage() {
   const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
+  const [markets, setMarkets] = useState<Market[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedMarketId, setSelectedMarketId] = useState('');
   const [currentItems, setCurrentItems] = useState<PurchaseItem[]>([]);
   
   // For adding new item to current purchase
@@ -43,14 +54,23 @@ export function PurchasesPage() {
   const [quantity, setQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   
+  // For quick item adding
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickItemName, setQuickItemName] = useState('');
+  const [quickItemCategory, setQuickItemCategory] = useState('');
+  
   const { toast } = useToast();
 
   useEffect(() => {
     const savedItems = localStorage.getItem('grocery-items');
+    const savedMarkets = localStorage.getItem('grocery-markets');
     const savedPurchases = localStorage.getItem('grocery-purchases');
     
     if (savedItems) {
       setGroceryItems(JSON.parse(savedItems));
+    }
+    if (savedMarkets) {
+      setMarkets(JSON.parse(savedMarkets));
     }
     if (savedPurchases) {
       // Convert old format to new format if needed
@@ -97,6 +117,39 @@ export function PurchasesPage() {
   const savePurchases = (updatedPurchases: Purchase[]) => {
     localStorage.setItem('grocery-purchases', JSON.stringify(updatedPurchases));
     setPurchases(updatedPurchases);
+  };
+
+  const addQuickItem = () => {
+    if (!quickItemName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an item name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newItem: GroceryItem = {
+      id: Date.now().toString(),
+      name: quickItemName.trim(),
+      category: quickItemCategory.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedItems = [...groceryItems, newItem];
+    localStorage.setItem('grocery-items', JSON.stringify(updatedItems));
+    setGroceryItems(updatedItems);
+    
+    // Auto-select the new item
+    setSelectedItemId(newItem.id);
+    setQuickItemName('');
+    setQuickItemCategory('');
+    setShowQuickAdd(false);
+    
+    toast({
+      title: "Success",
+      description: "Item added and selected!",
+    });
   };
 
   const addItemToCurrentPurchase = () => {
@@ -150,10 +203,13 @@ export function PurchasesPage() {
     }
 
     const totalAmount = currentItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const selectedMarket = markets.find(m => m.id === selectedMarketId);
 
     const newPurchase: Purchase = {
       id: Date.now().toString(),
       date: selectedDate.toISOString(),
+      marketId: selectedMarketId || undefined,
+      marketName: selectedMarket?.name || undefined,
       items: currentItems,
       totalAmount,
       createdAt: new Date().toISOString(),
@@ -163,6 +219,7 @@ export function PurchasesPage() {
     savePurchases(updatedPurchases);
     
     setCurrentItems([]);
+    setSelectedMarketId('');
     setSelectedDate(new Date());
     
     toast({
@@ -202,50 +259,85 @@ export function PurchasesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Date Selection */}
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium">Shopping Date:</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "justify-start text-left font-normal w-64",
-                    !selectedDate && "text-muted-foreground"
-                  )}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <CalendarComponent
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
+          {/* Date and Market Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium">Shopping Date:</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "justify-start text-left font-normal w-full",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium">Market:</label>
+              <Select value={selectedMarketId} onValueChange={setSelectedMarketId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select market (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {markets.map((market) => (
+                    <SelectItem key={market.id} value={market.id}>
+                      {market.name} {market.location && `- ${market.location}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Add Item Form */}
           <div className="border rounded-lg p-4 bg-secondary/20">
             <h3 className="font-medium mb-4">Add Item to Shopping Trip</h3>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <Select value={selectedItemId} onValueChange={setSelectedItemId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groceryItems.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
+              <div className="relative">
+                <Select 
+                  value={selectedItemId} 
+                  onValueChange={(value) => {
+                    if (value === 'add-new') {
+                      setShowQuickAdd(true);
+                    } else {
+                      setSelectedItemId(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="add-new" className="text-primary font-medium">
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Add New Item
+                      </div>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {groceryItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <Input
                 type="number"
@@ -259,14 +351,14 @@ export function PurchasesPage() {
               <Input
                 type="number"
                 step="0.01"
-                placeholder="Unit Price ($)"
+                placeholder="Unit Price (€)"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && addItemToCurrentPurchase()}
               />
 
               <div className="flex items-center text-sm text-muted-foreground">
-                Total: ${quantity && unitPrice ? (parseInt(quantity || '0') * parseFloat(unitPrice || '0')).toFixed(2) : '0.00'}
+                Total: €{quantity && unitPrice ? (parseInt(quantity || '0') * parseFloat(unitPrice || '0')).toFixed(2) : '0.00'}
               </div>
 
               <Button onClick={addItemToCurrentPurchase} variant="success" className="w-full">
@@ -274,6 +366,44 @@ export function PurchasesPage() {
                 Add Item
               </Button>
             </div>
+
+            {/* Quick Add Item Form */}
+            {showQuickAdd && (
+              <div className="mt-4 p-4 border border-primary/20 rounded-lg bg-primary/5 animate-fade-in">
+                <h4 className="font-medium mb-3 text-primary">Quick Add New Item</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Input
+                    placeholder="Item name"
+                    value={quickItemName}
+                    onChange={(e) => setQuickItemName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addQuickItem()}
+                  />
+                  <Input
+                    placeholder="Category (optional)"
+                    value={quickItemCategory}
+                    onChange={(e) => setQuickItemCategory(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addQuickItem()}
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={addQuickItem} variant="success" size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowQuickAdd(false);
+                        setQuickItemName('');
+                        setQuickItemCategory('');
+                      }} 
+                      variant="outline" 
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {groceryItems.length === 0 && (
               <div className="text-center py-4 text-muted-foreground">
@@ -288,7 +418,7 @@ export function PurchasesPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-medium">Items in Current Purchase</h3>
                 <span className="text-lg font-semibold text-primary">
-                  Total: ${currentTotal.toFixed(2)}
+                  Total: €{currentTotal.toFixed(2)}
                 </span>
               </div>
               <div className="space-y-2">
@@ -297,12 +427,12 @@ export function PurchasesPage() {
                     <div className="flex items-center gap-4">
                       <span className="font-medium">{item.itemName}</span>
                       <span className="text-sm text-muted-foreground">
-                        {item.quantity} × ${item.unitPrice.toFixed(2)}
+                        {item.quantity} × €{item.unitPrice.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-semibold text-primary">
-                        ${item.totalPrice.toFixed(2)}
+                        €{item.totalPrice.toFixed(2)}
                       </span>
                       <Button
                         variant="ghost"
@@ -319,7 +449,7 @@ export function PurchasesPage() {
               <div className="mt-4 flex justify-end">
                 <Button onClick={savePurchase} variant="gradient" size="lg">
                   <ShoppingCart className="h-4 w-4 mr-2" />
-                  Save Shopping Trip (${currentTotal.toFixed(2)})
+                  Save Shopping Trip (€{currentTotal.toFixed(2)})
                 </Button>
               </div>
             </div>
@@ -351,6 +481,11 @@ export function PurchasesPage() {
                     <div>
                       <h3 className="font-medium text-foreground">
                         Shopping Trip - {format(new Date(purchase.date), "PPP")}
+                        {purchase.marketName && (
+                          <span className="text-sm text-muted-foreground ml-2">
+                            at {purchase.marketName}
+                          </span>
+                        )}
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         {purchase.items.length} item{purchase.items.length !== 1 ? 's' : ''}
@@ -358,7 +493,7 @@ export function PurchasesPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xl font-semibold text-primary">
-                        ${purchase.totalAmount.toFixed(2)}
+                        €{purchase.totalAmount.toFixed(2)}
                       </span>
                       <Button
                         variant="ghost"
@@ -376,7 +511,7 @@ export function PurchasesPage() {
                       <div key={index} className="text-sm bg-secondary/30 rounded p-2">
                         <div className="font-medium">{item.itemName}</div>
                         <div className="text-muted-foreground">
-                          {item.quantity} × ${item.unitPrice.toFixed(2)} = ${item.totalPrice.toFixed(2)}
+                          {item.quantity} × €{item.unitPrice.toFixed(2)} = €{item.totalPrice.toFixed(2)}
                         </div>
                       </div>
                     ))}
