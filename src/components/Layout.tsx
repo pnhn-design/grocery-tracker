@@ -1,15 +1,22 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { ShoppingCart, Package, BarChart3, Store } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
-  { name: 'Items', href: '/items', icon: Package },
-  { name: 'Markets', href: '/markets', icon: Store },
+  // { name: 'Items', href: '/items', icon: Package },
+  // { name: 'Markets', href: '/markets', icon: Store },
   { name: 'Purchases', href: '/purchases', icon: ShoppingCart },
 ];
 
 export function Layout() {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary">
       <nav className="bg-card border-b shadow-soft">
@@ -29,7 +36,7 @@ export function Layout() {
                       `inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                         isActive
                           ? 'bg-primary text-primary-foreground shadow-soft'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                          : 'text-muted-foreground hover:text-foreground'
                       }`
                     }
                   >
@@ -37,6 +44,28 @@ export function Layout() {
                     {item.name}
                   </NavLink>
                 ))}
+                {/* Databases Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground focus-visible:text-foreground"
+                      style={{ background: 'none', border: 'none' }}
+                      type="button"
+                    >
+                      <Database className="h-4 w-4 mr-2" />
+                      Databases
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onSelect={() => navigate('/items')} className="cursor-pointer hover:text-foreground">
+                      <Package className="h-4 w-4 mr-2" /> Items
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => navigate('/markets')} className="cursor-pointer hover:text-foreground">
+                      <Store className="h-4 w-4 mr-2" /> Markets
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </div>
