@@ -39,6 +39,7 @@ interface Market {
   id: string;
   name: string;
   location?: string;
+  createdAt: string;
 }
 
 export function PurchasesPage() {
@@ -58,6 +59,11 @@ export function PurchasesPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickItemName, setQuickItemName] = useState('');
   const [quickItemCategory, setQuickItemCategory] = useState('');
+  
+  // For quick market adding
+  const [showQuickAddMarket, setShowQuickAddMarket] = useState(false);
+  const [quickMarketName, setQuickMarketName] = useState('');
+  const [quickMarketLocation, setQuickMarketLocation] = useState('');
   
   const { toast } = useToast();
 
@@ -149,6 +155,37 @@ export function PurchasesPage() {
     toast({
       title: "Success",
       description: "Item added and selected!",
+    });
+  };
+
+  const addQuickMarket = () => {
+    if (!quickMarketName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a market name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newMarket: Market = {
+      id: Date.now().toString(),
+      name: quickMarketName.trim(),
+      location: quickMarketLocation.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedMarkets = [...markets, newMarket];
+    localStorage.setItem('grocery-markets', JSON.stringify(updatedMarkets));
+    setMarkets(updatedMarkets);
+    // Auto-select the new market
+    setSelectedMarketId(newMarket.id);
+    setQuickMarketName('');
+    setQuickMarketLocation('');
+    setShowQuickAddMarket(false);
+    toast({
+      title: "Success",
+      description: "Market added and selected!",
     });
   };
 
@@ -290,11 +327,23 @@ export function PurchasesPage() {
 
             <div className="flex items-center gap-4">
               <label className="text-sm font-medium">Market:</label>
-              <Select value={selectedMarketId} onValueChange={setSelectedMarketId}>
+              <Select value={selectedMarketId} onValueChange={(value) => {
+                if (value === 'add-new-market') {
+                  setShowQuickAddMarket(true);
+                } else {
+                  setSelectedMarketId(value);
+                }
+              }}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select market (optional)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="add-new-market" className="text-primary font-medium">
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add New Market
+                    </div>
+                  </SelectItem>
                   {markets.map((market) => (
                     <SelectItem key={market.id} value={market.id}>
                       {market.name} {market.location && `- ${market.location}`}
@@ -303,6 +352,42 @@ export function PurchasesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {showQuickAddMarket && (
+              <div className="mt-4 p-4 border border-primary/20 rounded-lg bg-primary/5 animate-fade-in">
+                <h4 className="font-medium mb-3 text-primary">Quick Add New Market</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Input
+                    placeholder="Market name"
+                    value={quickMarketName}
+                    onChange={(e) => setQuickMarketName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addQuickMarket()}
+                  />
+                  <Input
+                    placeholder="Location (optional)"
+                    value={quickMarketLocation}
+                    onChange={(e) => setQuickMarketLocation(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addQuickMarket()}
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={addQuickMarket} variant="success" size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowQuickAddMarket(false);
+                        setQuickMarketName('');
+                        setQuickMarketLocation('');
+                      }} 
+                      variant="outline" 
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Add Item Form */}
