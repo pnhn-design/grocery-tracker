@@ -5,12 +5,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-interface Purchase {
-  id: string;
+interface PurchaseItem {
   itemId: string;
   itemName: string;
-  amount: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+interface Purchase {
+  id: string;
   date: string;
+  items: PurchaseItem[];
+  totalAmount: number;
   createdAt: string;
 }
 
@@ -30,18 +37,54 @@ export function Dashboard() {
     const savedItems = localStorage.getItem('grocery-items');
     
     if (savedPurchases) {
-      setPurchases(JSON.parse(savedPurchases));
+      const parsed = JSON.parse(savedPurchases);
+      // Handle both old and new format
+      if (parsed.length > 0 && parsed[0].itemId) {
+        // Old format, convert it
+        const converted = convertOldPurchases(parsed);
+        setPurchases(converted);
+      } else {
+        setPurchases(parsed);
+      }
     }
     if (savedItems) {
       setItems(JSON.parse(savedItems));
     }
   }, []);
 
+  const convertOldPurchases = (oldPurchases: any[]): Purchase[] => {
+    const grouped = oldPurchases.reduce((acc, old) => {
+      const dateKey = old.date.split('T')[0];
+      if (!acc[dateKey]) {
+        acc[dateKey] = {
+          id: `converted-${dateKey}-${Date.now()}`,
+          date: old.date,
+          items: [],
+          totalAmount: 0,
+          createdAt: old.createdAt
+        };
+      }
+      
+      acc[dateKey].items.push({
+        itemId: old.itemId,
+        itemName: old.itemName,
+        quantity: 1,
+        unitPrice: old.amount,
+        totalPrice: old.amount
+      });
+      acc[dateKey].totalAmount += old.amount;
+      
+      return acc;
+    }, {} as Record<string, Purchase>);
+    
+    return Object.values(grouped);
+  };
+
   // Daily spending data
   const dailySpending = useMemo(() => {
     const grouped = purchases.reduce((acc, purchase) => {
       const date = format(parseISO(purchase.date), 'yyyy-MM-dd');
-      acc[date] = (acc[date] || 0) + purchase.amount;
+      acc[date] = (acc[date] || 0) + purchase.totalAmount;
       return acc;
     }, {} as Record<string, number>);
 
@@ -58,7 +101,7 @@ export function Dashboard() {
   const monthlySpending = useMemo(() => {
     const grouped = purchases.reduce((acc, purchase) => {
       const month = format(parseISO(purchase.date), 'yyyy-MM');
-      acc[month] = (acc[month] || 0) + purchase.amount;
+      acc[month] = (acc[month] || 0) + purchase.totalAmount;
       return acc;
     }, {} as Record<string, number>);
 
@@ -73,7 +116,9 @@ export function Dashboard() {
   // Top spending items
   const topSpendingItems = useMemo(() => {
     const grouped = purchases.reduce((acc, purchase) => {
-      acc[purchase.itemName] = (acc[purchase.itemName] || 0) + purchase.amount;
+      purchase.items.forEach(item => {
+        acc[item.itemName] = (acc[item.itemName] || 0) + item.totalPrice;
+      });
       return acc;
     }, {} as Record<string, number>);
 
@@ -90,18 +135,27 @@ export function Dashboard() {
   const priceProgression = useMemo(() => {
     if (!selectedItem) return [];
     
-    const itemPurchases = purchases
-      .filter(p => p.itemId === selectedItem)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const itemPurchases: Array<{ date: string; price: number; purchase: number }> = [];
+    let purchaseCount = 0;
+    
+    purchases
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .forEach(purchase => {
+        const item = purchase.items.find(item => item.itemId === selectedItem);
+        if (item) {
+          purchaseCount++;
+          itemPurchases.push({
+            purchase: purchaseCount,
+            date: format(parseISO(purchase.date), 'MMM dd'),
+            price: item.unitPrice
+          });
+        }
+      });
 
-    return itemPurchases.map((purchase, index) => ({
-      purchase: index + 1,
-      date: format(parseISO(purchase.date), 'MMM dd'),
-      price: purchase.amount
-    }));
+    return itemPurchases;
   }, [purchases, selectedItem]);
 
-  const totalSpent = purchases.reduce((sum, purchase) => sum + purchase.amount, 0);
+  const totalSpent = purchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
   const averagePerPurchase = purchases.length > 0 ? totalSpent / purchases.length : 0;
   const currentMonthSpending = purchases
     .filter(p => {
@@ -109,7 +163,7 @@ export function Dashboard() {
       const now = new Date();
       return purchaseDate >= startOfMonth(now) && purchaseDate <= endOfMonth(now);
     })
-    .reduce((sum, p) => sum + p.amount, 0);
+    .reduce((sum, p) => sum + p.totalAmount, 0);
 
   const COLORS = ['hsl(142, 76%, 36%)', 'hsl(45, 93%, 47%)', 'hsl(220, 91%, 60%)', 'hsl(0, 84%, 60%)', 'hsl(280, 76%, 56%)'];
 
