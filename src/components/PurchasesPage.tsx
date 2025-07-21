@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, DollarSign, ShoppingCart, Trash2, Minus, X } from 'lucide-react';
+import { Plus, Calendar, DollarSign, ShoppingCart, Trash2, Minus, X, Recycle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,8 @@ interface Market {
   location?: string;
   createdAt: string;
 }
+
+const PFAND_CATEGORY = { id: 'pfand', name: 'Pfand', createdAt: 'fixed' };
 
 export function PurchasesPage() {
   const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
@@ -88,9 +90,14 @@ export function PurchasesPage() {
     if (savedItems) {
       setGroceryItems(JSON.parse(savedItems));
     }
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
+    let loadedCategories = savedCategories ? JSON.parse(savedCategories) : [];
+    // Always include Pfand
+    if (!loadedCategories.some(cat => cat.id === PFAND_CATEGORY.id || cat.name.toLowerCase() === 'pfand')) {
+      loadedCategories = [PFAND_CATEGORY, ...loadedCategories];
+    } else {
+      loadedCategories = [PFAND_CATEGORY, ...loadedCategories.filter(cat => cat.id !== PFAND_CATEGORY.id && cat.name.toLowerCase() !== 'pfand')];
     }
+    setCategories(loadedCategories);
     if (savedMarkets) {
       setMarkets(JSON.parse(savedMarkets));
     }
@@ -518,7 +525,10 @@ export function PurchasesPage() {
                         </SelectItem>
                         {categories.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
-                            {category.name}
+                            <div className="flex items-center gap-2">
+                              {category.id === 'pfand' && <Recycle className="text-green-600" />}
+                              {category.name}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -542,7 +552,7 @@ export function PurchasesPage() {
                               });
                               return;
                             }
-                            if (categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase())) {
+                            if (categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase()) || quickCategoryName.trim().toLowerCase() === 'pfand') {
                               toast({
                                 title: "Error",
                                 description: "This category already exists",

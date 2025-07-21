@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Package } from 'lucide-react';
+import { Plus, Trash2, Package, Recycle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,8 @@ export function ItemsPage() {
   const [quickCategoryName, setQuickCategoryName] = useState('');
   const { toast } = useToast();
 
+  const PFAND_CATEGORY = { id: 'pfand', name: 'Pfand', createdAt: 'fixed' };
+
   useEffect(() => {
     const savedItems = localStorage.getItem('grocery-items');
     if (savedItems) {
@@ -36,9 +38,14 @@ export function ItemsPage() {
     }
     
     const savedCategories = localStorage.getItem('grocery-categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
+    let loadedCategories = savedCategories ? JSON.parse(savedCategories) : [];
+    // Always include Pfand
+    if (!loadedCategories.some(cat => cat.id === PFAND_CATEGORY.id || cat.name.toLowerCase() === 'pfand')) {
+      loadedCategories = [PFAND_CATEGORY, ...loadedCategories];
+    } else {
+      loadedCategories = [PFAND_CATEGORY, ...loadedCategories.filter(cat => cat.id !== PFAND_CATEGORY.id && cat.name.toLowerCase() !== 'pfand')];
     }
+    setCategories(loadedCategories);
   }, []);
 
   const saveCategories = (updatedCategories: Category[]) => {
@@ -55,9 +62,8 @@ export function ItemsPage() {
       });
       return;
     }
-
-    // Check if category already exists
-    if (categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase())) {
+    // Prevent duplicate or reserved name 'Pfand'
+    if (quickCategoryName.trim().toLowerCase() === 'pfand' || categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase())) {
       toast({
         title: "Error",
         description: "This category already exists",
@@ -176,7 +182,10 @@ export function ItemsPage() {
                 </SelectItem>
                 {categories.map((category) => (
                   <SelectItem key={category.id} value={category.id}>
-                    {category.name}
+                    <div className="flex items-center gap-2">
+                      {category.id === 'pfand' && <Recycle className="text-green-600" />}
+                      {category.name}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>

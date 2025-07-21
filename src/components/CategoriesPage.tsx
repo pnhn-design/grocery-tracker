@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Tag } from 'lucide-react';
+import { Plus, Trash2, Tag, Recycle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,21 +11,44 @@ interface Category {
   createdAt: string;
 }
 
+const PFAND_CATEGORY: Category = {
+  id: 'pfand',
+  name: 'Pfand',
+  createdAt: 'fixed',
+};
+
 export function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const { toast } = useToast();
 
+  // Helper to ensure Pfand is always present
+  const withPfand = (cats: Category[]) => {
+    const hasPfand = cats.some(cat => cat.id === PFAND_CATEGORY.id || cat.name.toLowerCase() === 'pfand');
+    if (hasPfand) {
+      // Replace any existing Pfand with the fixed one (by id or name)
+      return [
+        PFAND_CATEGORY,
+        ...cats.filter(cat => cat.id !== PFAND_CATEGORY.id && cat.name.toLowerCase() !== 'pfand'),
+      ];
+    }
+    return [PFAND_CATEGORY, ...cats];
+  };
+
   useEffect(() => {
     const savedCategories = localStorage.getItem('grocery-categories');
     if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
+      setCategories(withPfand(JSON.parse(savedCategories)));
+    } else {
+      setCategories([PFAND_CATEGORY]);
     }
   }, []);
 
   const saveCategories = (updatedCategories: Category[]) => {
-    localStorage.setItem('grocery-categories', JSON.stringify(updatedCategories));
-    setCategories(updatedCategories);
+    // Never save without Pfand
+    const cats = withPfand(updatedCategories);
+    localStorage.setItem('grocery-categories', JSON.stringify(cats.filter(cat => cat.id !== PFAND_CATEGORY.id)));
+    setCategories(cats);
   };
 
   const addCategory = () => {
@@ -38,8 +61,8 @@ export function CategoriesPage() {
       return;
     }
 
-    // Check if category already exists
-    if (categories.some(cat => cat.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+    // Prevent duplicate or reserved name 'Pfand'
+    if (newCategoryName.trim().toLowerCase() === 'pfand' || categories.some(cat => cat.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
       toast({
         title: "Error",
         description: "This category already exists",
@@ -65,6 +88,14 @@ export function CategoriesPage() {
   };
 
   const deleteCategory = (id: string) => {
+    if (id === PFAND_CATEGORY.id) {
+      toast({
+        title: "Error",
+        description: 'The "Pfand" category cannot be deleted.',
+        variant: "destructive",
+      });
+      return;
+    }
     const updatedCategories = categories.filter(category => category.id !== id);
     saveCategories(updatedCategories);
     
@@ -128,17 +159,22 @@ export function CategoriesPage() {
                   key={category.id}
                   className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
                 >
-                  <div>
+                  <div className="flex items-center gap-2">
+                    {category.id === PFAND_CATEGORY.id && (
+                      <Recycle className="text-green-600" />
+                    )}
                     <h3 className="font-medium text-foreground">{category.name}</h3>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteCategory(category.id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {category.id !== PFAND_CATEGORY.id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteCategory(category.id)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
