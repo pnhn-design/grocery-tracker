@@ -246,32 +246,6 @@ export function Dashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Category Breakdown */}
-        <Card className="shadow-soft">
-          <CardHeader>
-            <CardTitle>Category breakdown</CardTitle>
-            <CardDescription>Your spending by category.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categorySpending} layout="horizontal">
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis type="number" fontSize={12} />
-                <YAxis dataKey="category" type="category" width={80} fontSize={11} />
-                <Tooltip 
-                  formatter={(value) => [`€${value}`, 'Amount']}
-                  labelStyle={{ color: 'hsl(var(--foreground))' }}
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Bar dataKey="amount" fill="hsl(220, 91%, 60%)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
         {/* Daily Spending */}
         <Card className="shadow-soft">
           <CardHeader>
@@ -298,7 +272,6 @@ export function Dashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-
         {/* Monthly spending with navigator */}
         <Card className="shadow-soft">
           <CardHeader>
@@ -349,7 +322,32 @@ export function Dashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-
+        {/* Category Breakdown */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle>Category breakdown</CardTitle>
+            <CardDescription>Your spending by category.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={categorySpending} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis type="number" fontSize={12} />
+                <YAxis dataKey="category" type="category" width={80} fontSize={11} />
+                <Tooltip 
+                  formatter={(value) => [`€${value}`, 'Amount']}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Bar dataKey="amount" fill="hsl(220, 91%, 60%)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
         {/* Top Spending Items */}
         <Card className="shadow-soft">
           <CardHeader>
