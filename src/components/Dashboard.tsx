@@ -163,6 +163,25 @@ export function Dashboard() {
     return itemPurchases;
   }, [purchases, selectedItem]);
 
+  // Category spending breakdown
+  const categorySpending = useMemo(() => {
+    const categoryTotals = purchases.reduce((acc, purchase) => {
+      purchase.items.forEach(item => {
+        const groceryItem = items.find(gi => gi.id === item.itemId);
+        const category = groceryItem?.category || 'Uncategorized';
+        acc[category] = (acc[category] || 0) + item.totalPrice;
+      });
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(categoryTotals)
+      .map(([category, amount]) => ({
+        category,
+        amount: Number(amount.toFixed(2))
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [purchases, items]);
+
   const totalSpent = purchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0);
   const averagePerPurchase = purchases.length > 0 ? totalSpent / purchases.length : 0;
   const currentMonthSpending = purchases
@@ -227,6 +246,32 @@ export function Dashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Category Breakdown */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle>Category breakdown</CardTitle>
+            <CardDescription>Your spending by category.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={categorySpending} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis type="number" fontSize={12} />
+                <YAxis dataKey="category" type="category" width={80} fontSize={11} />
+                <Tooltip 
+                  formatter={(value) => [`€${value}`, 'Amount']}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Bar dataKey="amount" fill="hsl(220, 91%, 60%)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
         {/* Daily Spending */}
         <Card className="shadow-soft">
           <CardHeader>
