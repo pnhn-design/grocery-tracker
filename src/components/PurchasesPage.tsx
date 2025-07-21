@@ -68,6 +68,15 @@ export function PurchasesPage() {
   const [quickMarketName, setQuickMarketName] = useState('');
   const [quickMarketLocation, setQuickMarketLocation] = useState('');
   
+  // Add state for editing index at the top of PurchasesPage
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editQuantity, setEditQuantity] = useState('');
+  const [editUnitPrice, setEditUnitPrice] = useState('');
+  
+  // Add state for quick category adding
+  const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
+  const [quickCategoryName, setQuickCategoryName] = useState('');
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -224,15 +233,26 @@ export function PurchasesPage() {
       totalPrice: total,
     };
 
-    setCurrentItems([...currentItems, newItem]);
+    if (editIndex !== null) {
+      // Edit mode: replace item at editIndex
+      const updatedItems = [...currentItems];
+      updatedItems[editIndex] = newItem;
+      setCurrentItems(updatedItems);
+      setEditIndex(null);
+      toast({
+        title: "Item updated",
+        description: `${selectedItem.name} updated in current purchase`,
+      });
+    } else {
+      setCurrentItems([...currentItems, newItem]);
+      toast({
+        title: "Item added",
+        description: `${selectedItem.name} added to current purchase`,
+      });
+    }
     setSelectedItemId('');
     setQuantity('');
     setUnitPrice('');
-    
-    toast({
-      title: "Item added",
-      description: `${selectedItem.name} added to current purchase`,
-    });
   };
 
   const removeItemFromCurrent = (index: number) => {
@@ -478,18 +498,91 @@ export function PurchasesPage() {
                     onChange={(e) => setQuickItemName(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addQuickItem()}
                   />
-                  <Select value={quickItemCategoryId} onValueChange={setQuickItemCategoryId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
+                  <div>
+                    <Select value={quickItemCategoryId} onValueChange={(value) => {
+                      if (value === 'add-new-category') {
+                        setShowQuickAddCategory(true);
+                      } else {
+                        setQuickItemCategoryId(value);
+                      }
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="add-new-category" className="text-primary font-medium">
+                          <div className="flex items-center gap-2">
+                            <Plus className="h-4 w-4" />
+                            Add New Category
+                          </div>
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {showQuickAddCategory && (
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          placeholder="Category name"
+                          value={quickCategoryName}
+                          onChange={e => setQuickCategoryName(e.target.value)}
+                        />
+                        <Button
+                          variant="success"
+                          size="sm"
+                          onClick={() => {
+                            if (!quickCategoryName.trim()) {
+                              toast({
+                                title: "Error",
+                                description: "Please enter a category name",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            if (categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase())) {
+                              toast({
+                                title: "Error",
+                                description: "This category already exists",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            const newCategory = {
+                              id: Date.now().toString(),
+                              name: quickCategoryName.trim(),
+                              createdAt: new Date().toISOString(),
+                            };
+                            const updatedCategories = [...categories, newCategory];
+                            localStorage.setItem('grocery-categories', JSON.stringify(updatedCategories));
+                            setCategories(updatedCategories);
+                            setQuickItemCategoryId(newCategory.id);
+                            setQuickCategoryName('');
+                            setShowQuickAddCategory(false);
+                            toast({
+                              title: "Success",
+                              description: "Category added and selected!",
+                            });
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setShowQuickAddCategory(false);
+                            setQuickCategoryName('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={addQuickItem} variant="success" size="sm">
                       <Plus className="h-4 w-4 mr-1" />
@@ -536,21 +629,101 @@ export function PurchasesPage() {
                   <div key={index} className="flex items-center justify-between p-3 bg-background rounded border">
                     <div className="flex items-center gap-4">
                       <span className="font-medium">{item.itemName}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {item.quantity} × €{item.unitPrice.toFixed(2)}
-                      </span>
+                      {editIndex === index ? (
+                        <>
+                          <input
+                            type="number"
+                            min="1"
+                            className="border rounded px-2 py-1 w-16 text-sm"
+                            value={editQuantity}
+                            onChange={e => setEditQuantity(e.target.value)}
+                            autoFocus
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="border rounded px-2 py-1 w-20 text-sm"
+                            value={editUnitPrice}
+                            onChange={e => setEditUnitPrice(e.target.value)}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            Total: €{editQuantity && editUnitPrice ? (parseInt(editQuantity || '0') * parseFloat(editUnitPrice || '0')).toFixed(2) : '0.00'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {item.quantity} × €{item.unitPrice.toFixed(2)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-semibold text-primary">
                         €{item.totalPrice.toFixed(2)}
                       </span>
+                      {editIndex === index ? (
+                        <>
+                          <Button
+                            variant="success"
+                            size="sm"
+                            onClick={() => {
+                              const qty = parseInt(editQuantity);
+                              const price = parseFloat(editUnitPrice);
+                              if (!qty || !price) return;
+                              const updatedItems = [...currentItems];
+                              updatedItems[index] = {
+                                ...item,
+                                quantity: qty,
+                                unitPrice: price,
+                                totalPrice: qty * price,
+                              };
+                              setCurrentItems(updatedItems);
+                              setEditIndex(null);
+                              setEditQuantity('');
+                              setEditUnitPrice('');
+                              toast({
+                                title: "Item updated",
+                                description: `${item.itemName} updated in current purchase`,
+                              });
+                            }}
+                            className="mr-1"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditIndex(null);
+                              setEditQuantity('');
+                              setEditUnitPrice('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditIndex(index);
+                            setEditQuantity(item.quantity.toString());
+                            setEditUnitPrice(item.unitPrice.toString());
+                          }}
+                          className="text-primary hover:text-primary hover:bg-primary/10"
+                          title="Edit item"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13h3l8-8a2.828 2.828 0 00-4-4l-8 8v3h3z" /></svg>
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => removeItemFromCurrent(index)}
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        title="Remove item"
                       >
-                        <X className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
