@@ -46,6 +46,7 @@ interface Market {
 
 export function PurchasesPage() {
   const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string; }[]>([]);
   const [markets, setMarkets] = useState<Market[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -60,7 +61,7 @@ export function PurchasesPage() {
   // For quick item adding
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickItemName, setQuickItemName] = useState('');
-  const [quickItemCategory, setQuickItemCategory] = useState('');
+  const [quickItemCategoryId, setQuickItemCategoryId] = useState('');
   
   // For quick market adding
   const [showQuickAddMarket, setShowQuickAddMarket] = useState(false);
@@ -71,11 +72,15 @@ export function PurchasesPage() {
 
   useEffect(() => {
     const savedItems = localStorage.getItem('grocery-items');
+    const savedCategories = localStorage.getItem('grocery-categories');
     const savedMarkets = localStorage.getItem('grocery-markets');
     const savedPurchases = localStorage.getItem('grocery-purchases');
     
     if (savedItems) {
       setGroceryItems(JSON.parse(savedItems));
+    }
+    if (savedCategories) {
+      setCategories(JSON.parse(savedCategories));
     }
     if (savedMarkets) {
       setMarkets(JSON.parse(savedMarkets));
@@ -137,10 +142,13 @@ export function PurchasesPage() {
       return;
     }
 
+    // Find category name from ID
+    const selectedCategory = categories.find(cat => cat.id === quickItemCategoryId);
+
     const newItem: GroceryItem = {
       id: Date.now().toString(),
       name: quickItemName.trim(),
-      category: quickItemCategory.trim() || undefined,
+      category: selectedCategory?.name || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -151,7 +159,7 @@ export function PurchasesPage() {
     // Auto-select the new item
     setSelectedItemId(newItem.id);
     setQuickItemName('');
-    setQuickItemCategory('');
+    setQuickItemCategoryId('');
     setShowQuickAdd(false);
     
     toast({
@@ -470,23 +478,29 @@ export function PurchasesPage() {
                     onChange={(e) => setQuickItemName(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addQuickItem()}
                   />
-                  <Input
-                    placeholder="Category (optional)"
-                    value={quickItemCategory}
-                    onChange={(e) => setQuickItemCategory(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addQuickItem()}
-                  />
+                  <Select value={quickItemCategoryId} onValueChange={setQuickItemCategoryId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <div className="flex gap-2">
                     <Button onClick={addQuickItem} variant="success" size="sm">
                       <Plus className="h-4 w-4 mr-1" />
                       Add
                     </Button>
                     <Button 
-                      onClick={() => {
-                        setShowQuickAdd(false);
-                        setQuickItemName('');
-                        setQuickItemCategory('');
-                      }} 
+                    onClick={() => {
+                      setShowQuickAdd(false);
+                      setQuickItemName('');
+                      setQuickItemCategoryId('');
+                    }}
                       variant="outline" 
                       size="sm"
                     >

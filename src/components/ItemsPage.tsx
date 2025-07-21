@@ -25,6 +25,8 @@ export function ItemsPage() {
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState(''); // Search bar state
+  const [showQuickCategoryAdd, setShowQuickCategoryAdd] = useState(false);
+  const [quickCategoryName, setQuickCategoryName] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -38,6 +40,51 @@ export function ItemsPage() {
       setCategories(JSON.parse(savedCategories));
     }
   }, []);
+
+  const saveCategories = (updatedCategories: Category[]) => {
+    localStorage.setItem('grocery-categories', JSON.stringify(updatedCategories));
+    setCategories(updatedCategories);
+  };
+
+  const addQuickCategory = () => {
+    if (!quickCategoryName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a category name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if category already exists
+    if (categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase())) {
+      toast({
+        title: "Error",
+        description: "This category already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newCategory: Category = {
+      id: Date.now().toString(),
+      name: quickCategoryName.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedCategories = [...categories, newCategory];
+    saveCategories(updatedCategories);
+    
+    // Auto-select the new category
+    setNewItemCategory(newCategory.id);
+    setQuickCategoryName('');
+    setShowQuickCategoryAdd(false);
+    
+    toast({
+      title: "Success",
+      description: "Category added and selected!",
+    });
+  };
 
   const saveItems = (updatedItems: GroceryItem[]) => {
     localStorage.setItem('grocery-items', JSON.stringify(updatedItems));
@@ -110,11 +157,23 @@ export function ItemsPage() {
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addItem()}
             />
-            <Select value={newItemCategory} onValueChange={setNewItemCategory}>
+            <Select value={newItemCategory} onValueChange={(value) => {
+              if (value === 'add-new-category') {
+                setShowQuickCategoryAdd(true);
+              } else {
+                setNewItemCategory(value);
+              }
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select category (optional)" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="add-new-category" className="text-primary font-medium">
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add New Category
+                  </div>
+                </SelectItem>
                 {categories.map((category) => (
                   <SelectItem key={category.id} value={category.id}>
                     {category.name}
@@ -127,6 +186,36 @@ export function ItemsPage() {
               Add Item
             </Button>
           </div>
+          
+          {/* Quick Add Category Form */}
+          {showQuickCategoryAdd && (
+            <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 animate-fade-in">
+              <h4 className="font-medium mb-3 text-primary">Quick Add New Category</h4>
+              <div className="flex gap-3">
+                <Input
+                  placeholder="Category name (e.g., Fruits, Vegetables)"
+                  value={quickCategoryName}
+                  onChange={(e) => setQuickCategoryName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addQuickCategory()}
+                  className="flex-1"
+                />
+                <Button onClick={addQuickCategory} variant="success" size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setShowQuickCategoryAdd(false);
+                    setQuickCategoryName('');
+                  }} 
+                  variant="outline" 
+                  size="sm"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
