@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -60,6 +60,9 @@ export function Layout() {
                   <DropdownMenuContent align="start">
                     <DropdownMenuItem onSelect={() => navigate('/items')} className="cursor-pointer hover:text-foreground">
                       <Package className="h-4 w-4 mr-2" /> Items
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => navigate('/categories')} className="cursor-pointer hover:text-foreground">
+                      <Tag className="h-4 w-4 mr-2" /> Categories
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => navigate('/markets')} className="cursor-pointer hover:text-foreground">
                       <Store className="h-4 w-4 mr-2" /> Markets

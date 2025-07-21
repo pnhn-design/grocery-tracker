@@ -3,6 +3,7 @@ import { Plus, Trash2, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 interface GroceryItem {
@@ -12,8 +13,15 @@ interface GroceryItem {
   createdAt: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 export function ItemsPage() {
   const [items, setItems] = useState<GroceryItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState(''); // Search bar state
@@ -23,6 +31,11 @@ export function ItemsPage() {
     const savedItems = localStorage.getItem('grocery-items');
     if (savedItems) {
       setItems(JSON.parse(savedItems));
+    }
+    
+    const savedCategories = localStorage.getItem('grocery-categories');
+    if (savedCategories) {
+      setCategories(JSON.parse(savedCategories));
     }
   }, []);
 
@@ -41,10 +54,13 @@ export function ItemsPage() {
       return;
     }
 
+    // Find category name from ID
+    const selectedCategory = categories.find(cat => cat.id === newItemCategory);
+    
     const newItem: GroceryItem = {
       id: Date.now().toString(),
       name: newItemName.trim(),
-      category: newItemCategory.trim() || undefined,
+      category: selectedCategory?.name || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -94,12 +110,18 @@ export function ItemsPage() {
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addItem()}
             />
-            <Input
-              placeholder="Category (optional)"
-              value={newItemCategory}
-              onChange={(e) => setNewItemCategory(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addItem()}
-            />
+            <Select value={newItemCategory} onValueChange={setNewItemCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button onClick={addItem} variant="gradient" className="w-full">
               <Plus className="h-4 w-4 mr-2" />
               Add Item
