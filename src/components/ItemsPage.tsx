@@ -138,12 +138,21 @@ export function ItemsPage() {
     });
   };
 
-  // Calculate category breakdown
-  const categoryBreakdown = items.reduce((acc, item) => {
-    const category = item.category || 'Uncategorized';
-    acc[category] = (acc[category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Group items by category for display
+  const groupedItems = items
+    .filter((item) => {
+      const words = item.name.toLowerCase().split(/\s+/);
+      const query = searchQuery.toLowerCase();
+      return words.some(word => word.startsWith(query));
+    })
+    .reduce((acc, item) => {
+      const category = item.category || 'Uncategorized';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(item);
+      return acc;
+    }, {} as Record<string, GroceryItem[]>);
 
   return (
     <div className="space-y-6">
@@ -243,21 +252,6 @@ export function ItemsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Category Breakdown */}
-          {items.length > 0 && Object.keys(categoryBreakdown).length > 0 && (
-            <div className="mb-6 p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-medium mb-3 text-foreground">Category Breakdown</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {Object.entries(categoryBreakdown).map(([category, count]) => (
-                  <div key={category} className="flex items-center justify-between p-2 bg-background rounded border">
-                    <span className="text-sm font-medium text-foreground">{category}</span>
-                    <span className="text-sm text-muted-foreground">{count} item{count !== 1 ? 's' : ''}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Search Bar */}
           <div className="mb-4">
             <Input
@@ -272,34 +266,38 @@ export function ItemsPage() {
               <p>No items yet. Add your first grocery item above!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items
-                .filter((item) => {
-                  const words = item.name.toLowerCase().split(/\s+/);
-                  const query = searchQuery.toLowerCase();
-                  return words.some(word => word.startsWith(query));
-                })
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
-                  >
-                    <div>
-                      <h3 className="font-medium text-foreground">{item.name}</h3>
-                      {item.category && (
-                        <p className="text-sm text-muted-foreground">{item.category}</p>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteItem(item.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+            <div className="space-y-6">
+              {Object.entries(groupedItems).map(([category, categoryItems]) => (
+                <div key={category}>
+                  <h3 className="font-semibold text-lg text-foreground mb-3 flex items-center gap-2">
+                    {category === 'Pfand' && <Recycle className="h-5 w-5 text-green-600" />}
+                    {category}
+                    <span className="text-sm text-muted-foreground font-normal">
+                      ({categoryItems.length} item{categoryItems.length !== 1 ? 's' : ''})
+                    </span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {categoryItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
+                      >
+                        <div>
+                          <h4 className="font-medium text-foreground">{item.name}</h4>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteItem(item.id)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
