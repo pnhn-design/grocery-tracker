@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Trash2, UserPlus, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,7 +32,8 @@ export const AdminPanel = () => {
     password: '',
     username: '',
     fullName: '',
-    role: 'user' as 'admin' | 'user'
+    role: 'user' as 'admin' | 'user',
+    useEmail: true
   });
   const [error, setError] = useState('');
   const { toast } = useToast();
@@ -81,9 +83,12 @@ export const AdminPanel = () => {
     setError('');
 
     try {
+      // Determine email to use
+      const emailToUse = newUser.useEmail ? newUser.email : `${newUser.username}@internal.local`;
+      
       // Create user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
+        email: emailToUse,
         password: newUser.password,
         user_metadata: {
           username: newUser.username,
@@ -114,7 +119,8 @@ export const AdminPanel = () => {
           password: '',
           username: '',
           fullName: '',
-          role: 'user'
+          role: 'user',
+          useEmail: true
         });
         setCreateUserOpen(false);
         fetchUsers();
@@ -202,16 +208,27 @@ export const AdminPanel = () => {
                 </Alert>
               )}
               
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                  required
+              <div className="flex items-center space-x-2 mb-4">
+                <Checkbox
+                  id="useEmail"
+                  checked={newUser.useEmail}
+                  onCheckedChange={(checked) => setNewUser(prev => ({ ...prev, useEmail: !!checked }))}
                 />
+                <Label htmlFor="useEmail">Use email (uncheck for username-only account)</Label>
               </div>
+              
+              {newUser.useEmail && (
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                    required={newUser.useEmail}
+                  />
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>

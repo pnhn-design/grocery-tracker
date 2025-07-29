@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 
 export const AuthPage = () => {
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,6 +27,14 @@ export const AuthPage = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    let email = emailOrUsername;
+    
+    // If it doesn't look like an email, treat it as username and generate internal email
+    if (!emailOrUsername.includes('@')) {
+      // For username-only login, we'll use an internal email format
+      email = `${emailOrUsername}@internal.local`;
+    }
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -59,12 +67,13 @@ export const AuthPage = () => {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="emailOrUsername">Email or Username</Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="emailOrUsername"
+                type="text"
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
+                placeholder="Enter email or username"
                 required
               />
             </div>
