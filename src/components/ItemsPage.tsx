@@ -138,6 +138,13 @@ export function ItemsPage() {
     });
   };
 
+  // Calculate category breakdown
+  const categoryBreakdown = items.reduce((acc, item) => {
+    const category = item.category || 'Uncategorized';
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
     <div className="space-y-6">
       <div>
@@ -236,6 +243,21 @@ export function ItemsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Category Breakdown */}
+          {items.length > 0 && Object.keys(categoryBreakdown).length > 0 && (
+            <div className="mb-6 p-4 bg-muted/30 rounded-lg">
+              <h4 className="font-medium mb-3 text-foreground">Category Breakdown</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {Object.entries(categoryBreakdown).map(([category, count]) => (
+                  <div key={category} className="flex items-center justify-between p-2 bg-background rounded border">
+                    <span className="text-sm font-medium text-foreground">{category}</span>
+                    <span className="text-sm text-muted-foreground">{count} item{count !== 1 ? 's' : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Search Bar */}
           <div className="mb-4">
             <Input
