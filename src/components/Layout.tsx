@@ -1,12 +1,15 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown, Tag } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown, Tag, Settings, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
@@ -17,6 +20,26 @@ const navigation = [
 
 export function Layout() {
   const navigate = useNavigate();
+  const { user, profile, userRole, loading, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary">
       <nav className="bg-card border-b shadow-soft">
@@ -69,7 +92,52 @@ export function Layout() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {/* Admin Link for Admins */}
+                {userRole === 'admin' && (
+                  <NavLink
+                    to="/admin"
+                    className={({ isActive }) =>
+                      `inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-soft'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`
+                    }
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Admin
+                  </NavLink>
+                )}
               </div>
+            </div>
+            
+            {/* User Menu */}
+            <div className="flex items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <User className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{profile?.username || 'User'}</p>
+                      <p className="w-[200px] truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={() => signOut()}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
