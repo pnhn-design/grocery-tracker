@@ -154,6 +154,8 @@ export function ItemsPage() {
       return acc;
     }, {} as Record<string, GroceryItem[]>);
 
+  // Force rebuild to clear cache
+
   return (
     <div className="space-y-6">
       <div>
