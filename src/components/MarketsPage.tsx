@@ -1,37 +1,57 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Store, MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Trash2, Store, Plus, Search } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Market {
   id: string;
   name: string;
   location?: string;
-  createdAt: string;
+  created_at: string;
 }
 
-export function MarketsPage() {
+export const MarketsPage = () => {
   const [markets, setMarkets] = useState<Market[]>([]);
-  const [newMarketName, setNewMarketName] = useState('');
-  const [newMarketLocation, setNewMarketLocation] = useState('');
-  const [searchQuery, setSearchQuery] = useState(''); // Search bar state
+  const [newMarketName, setNewMarketName] = useState("");
+  const [newMarketLocation, setNewMarketLocation] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedMarkets = localStorage.getItem('grocery-markets');
-    if (savedMarkets) {
-      setMarkets(JSON.parse(savedMarkets));
+    if (user) {
+      loadMarkets();
     }
-  }, []);
+  }, [user]);
 
-  const saveMarkets = (updatedMarkets: Market[]) => {
-    localStorage.setItem('grocery-markets', JSON.stringify(updatedMarkets));
-    setMarkets(updatedMarkets);
+  const loadMarkets = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('markets')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('name');
+
+      if (error) throw error;
+      setMarkets(data || []);
+    } catch (error) {
+      console.error('Error loading markets:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load markets",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const addMarket = () => {
+  const addMarket = async () => {
     if (!newMarketName.trim()) {
       toast({
         title: "Error",
@@ -41,55 +61,104 @@ export function MarketsPage() {
       return;
     }
 
-    const newMarket: Market = {
-      id: Date.now().toString(),
-      name: newMarketName.trim(),
-      location: newMarketLocation.trim() || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const { error } = await supabase
+        .from('markets')
+        .insert({
+          user_id: user?.id,
+          name: newMarketName.trim(),
+          location: newMarketLocation.trim() || null,
+        });
 
-    const updatedMarkets = [...markets, newMarket];
-    saveMarkets(updatedMarkets);
-    setNewMarketName('');
-    setNewMarketLocation('');
-    
-    toast({
-      title: "Success",
-      description: "Market added successfully!",
-    });
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: "Error",
+            description: "A market with this name already exists",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Market added successfully",
+      });
+
+      setNewMarketName("");
+      setNewMarketLocation("");
+      loadMarkets();
+    } catch (error) {
+      console.error('Error adding market:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add market",
+        variant: "destructive",
+      });
+    }
   };
 
-  const deleteMarket = (id: string) => {
-    const updatedMarkets = markets.filter(market => market.id !== id);
-    saveMarkets(updatedMarkets);
-    
-    toast({
-      title: "Market deleted",
-      description: "Market removed from your list",
-    });
+  const deleteMarket = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('markets')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Market deleted successfully",
+      });
+
+      loadMarkets();
+    } catch (error) {
+      console.error('Error deleting market:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete market",
+        variant: "destructive",
+      });
+    }
   };
+
+  const filteredMarkets = markets.filter(market =>
+    market.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (market.location && market.location.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading markets...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Markets & Stores</h1>
-        <p className="text-muted-foreground">Manage your shopping locations</p>
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-bold text-foreground">Markets</h1>
+        <p className="text-muted-foreground">Manage your grocery shopping locations</p>
       </div>
 
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Add New Market
-          </CardTitle>
-          <CardDescription>
-            Add markets and stores where you shop for groceries
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-soft border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add New Market
+            </CardTitle>
+            <CardDescription>Add a new grocery store or market</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <Input
-              placeholder="Market name (e.g., Walmart, Tesco)"
+              placeholder="Market name"
               value={newMarketName}
               onChange={(e) => setNewMarketName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addMarket()}
@@ -100,74 +169,64 @@ export function MarketsPage() {
               onChange={(e) => setNewMarketLocation(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addMarket()}
             />
-            <Button onClick={addMarket} variant="gradient" className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button onClick={addMarket} className="w-full">
               Add Market
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Store className="h-5 w-5" />
-            Your Markets ({markets.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Search Bar */}
-          <div className="mb-4">
+        <Card className="shadow-soft border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Your Markets
+            </CardTitle>
+            <CardDescription>
+              {markets.length} markets • Search to filter
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <Input
               placeholder="Search markets..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </div>
-          {markets.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Store className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No markets yet. Add your first shopping location above!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {markets
-                .filter((market) => {
-                  const words = market.name.toLowerCase().split(/\s+/);
-                  const query = searchQuery.toLowerCase();
-                  return words.some(word => word.startsWith(query));
-                })
-                .map((market) => (
+            
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredMarkets.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  {searchQuery ? "No markets match your search" : "No markets yet"}
+                </p>
+              ) : (
+                filteredMarkets.map((market) => (
                   <div
                     key={market.id}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all animate-fade-in"
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border border-border/50"
                   >
-                    <div className="flex items-center gap-3">
-                      <Store className="h-5 w-5 text-primary" />
+                    <div className="flex items-center gap-2">
+                      <Store className="h-4 w-4 text-primary" />
                       <div>
-                        <h3 className="font-medium text-foreground">{market.name}</h3>
+                        <span className="font-medium">{market.name}</span>
                         {market.location && (
-                          <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {market.location}
-                          </p>
+                          <p className="text-sm text-muted-foreground">{market.location}</p>
                         )}
                       </div>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => deleteMarket(market.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10 hover-scale"
+                      className="h-8 w-8 p-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                ))}
+                ))
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
-}
+};

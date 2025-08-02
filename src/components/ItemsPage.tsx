@@ -1,103 +1,67 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Package, Recycle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Trash2, Plus, Search, Recycle, Package } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface GroceryItem {
   id: string;
   name: string;
-  category?: string;
-  createdAt: string;
+  category_id: string | null;
+  created_at: string;
 }
 
 interface Category {
   id: string;
   name: string;
-  createdAt: string;
+  created_at: string;
 }
 
-export function ItemsPage() {
+export const ItemsPage = () => {
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState('');
-  const [searchQuery, setSearchQuery] = useState(''); // Search bar state
-  const [showQuickCategoryAdd, setShowQuickCategoryAdd] = useState(false);
-  const [quickCategoryName, setQuickCategoryName] = useState('');
+  const [newItemName, setNewItemName] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
-  const PFAND_CATEGORY = { id: 'pfand', name: 'Pfand', createdAt: 'fixed' };
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedItems = localStorage.getItem('grocery-items');
-    if (savedItems) {
-      setItems(JSON.parse(savedItems));
+    if (user) {
+      loadData();
     }
-    
-    const savedCategories = localStorage.getItem('grocery-categories');
-    let loadedCategories = savedCategories ? JSON.parse(savedCategories) : [];
-    // Always include Pfand
-    if (!loadedCategories.some(cat => cat.id === PFAND_CATEGORY.id || cat.name.toLowerCase() === 'pfand')) {
-      loadedCategories = [PFAND_CATEGORY, ...loadedCategories];
-    } else {
-      loadedCategories = [PFAND_CATEGORY, ...loadedCategories.filter(cat => cat.id !== PFAND_CATEGORY.id && cat.name.toLowerCase() !== 'pfand')];
-    }
-    setCategories(loadedCategories);
-  }, []);
+  }, [user]);
 
-  const saveCategories = (updatedCategories: Category[]) => {
-    localStorage.setItem('grocery-categories', JSON.stringify(updatedCategories));
-    setCategories(updatedCategories);
-  };
+  const loadData = async () => {
+    try {
+      const [categoriesResult, itemsResult] = await Promise.all([
+        supabase.from('categories').select('*').eq('user_id', user?.id).order('name'),
+        supabase.from('items').select('*').eq('user_id', user?.id).order('name')
+      ]);
 
-  const addQuickCategory = () => {
-    if (!quickCategoryName.trim()) {
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+
+      setCategories(categoriesResult.data || []);
+      setItems(itemsResult.data || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
       toast({
         title: "Error",
-        description: "Please enter a category name",
+        description: "Failed to load data",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-    // Prevent duplicate or reserved name 'Pfand'
-    if (quickCategoryName.trim().toLowerCase() === 'pfand' || categories.some(cat => cat.name.toLowerCase() === quickCategoryName.trim().toLowerCase())) {
-      toast({
-        title: "Error",
-        description: "This category already exists",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const newCategory: Category = {
-      id: Date.now().toString(),
-      name: quickCategoryName.trim(),
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedCategories = [...categories, newCategory];
-    saveCategories(updatedCategories);
-    
-    // Auto-select the new category
-    setNewItemCategory(newCategory.id);
-    setQuickCategoryName('');
-    setShowQuickCategoryAdd(false);
-    
-    toast({
-      title: "Success",
-      description: "Category added and selected!",
-    });
   };
 
-  const saveItems = (updatedItems: GroceryItem[]) => {
-    localStorage.setItem('grocery-items', JSON.stringify(updatedItems));
-    setItems(updatedItems);
-  };
-
-  const addItem = () => {
+  const addItem = async () => {
     if (!newItemName.trim()) {
       toast({
         title: "Error",
@@ -107,203 +71,202 @@ export function ItemsPage() {
       return;
     }
 
-    // Find category name from ID
-    const selectedCategory = categories.find(cat => cat.id === newItemCategory);
-    
-    const newItem: GroceryItem = {
-      id: Date.now().toString(),
-      name: newItemName.trim(),
-      category: selectedCategory?.name || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const { error } = await supabase
+        .from('items')
+        .insert({
+          user_id: user?.id,
+          name: newItemName.trim(),
+          category_id: selectedCategoryId || null,
+        });
 
-    const updatedItems = [...items, newItem];
-    saveItems(updatedItems);
-    setNewItemName('');
-    setNewItemCategory('');
-    
-    toast({
-      title: "Success",
-      description: "Item added successfully!",
-    });
-  };
-
-  const deleteItem = (id: string) => {
-    const updatedItems = items.filter(item => item.id !== id);
-    saveItems(updatedItems);
-    
-    toast({
-      title: "Item deleted",
-      description: "Item removed from your list",
-    });
-  };
-
-  // Group items by category for display
-  const groupedItems = items
-    .filter((item) => {
-      const words = item.name.toLowerCase().split(/\s+/);
-      const query = searchQuery.toLowerCase();
-      return words.some(word => word.startsWith(query));
-    })
-    .reduce((acc, item) => {
-      const category = item.category || 'Uncategorized';
-      if (!acc[category]) {
-        acc[category] = [];
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: "Error",
+            description: "An item with this name already exists",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
       }
-      acc[category].push(item);
-      return acc;
-    }, {} as Record<string, GroceryItem[]>);
 
-  // Force rebuild to clear cache
+      toast({
+        title: "Success",
+        description: "Item added successfully",
+      });
+
+      setNewItemName("");
+      setSelectedCategoryId("");
+      loadData();
+    } catch (error) {
+      console.error('Error adding item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Item deleted successfully",
+      });
+
+      loadData();
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getCategoryName = (categoryId: string | null) => {
+    if (!categoryId) return "Uncategorized";
+    return categories.find(cat => cat.id === categoryId)?.name || "Unknown";
+  };
+
+  const filteredItems = items.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const groupedItems = filteredItems.reduce((groups, item) => {
+    const categoryName = getCategoryName(item.category_id);
+    if (!groups[categoryName]) {
+      groups[categoryName] = [];
+    }
+    groups[categoryName].push(item);
+    return groups;
+  }, {} as Record<string, GroceryItem[]>);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading items...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-foreground">Items</h1>
-        <p className="text-muted-foreground">Manage your grocery item database</p>
+        <p className="text-muted-foreground">Manage your grocery items</p>
       </div>
 
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Add new item
-          </CardTitle>
-          <CardDescription>
-            Add items to your grocery database to track purchases
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              placeholder="Item name (e.g., Apples)"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addItem()}
-            />
-            <Select value={newItemCategory} onValueChange={(value) => {
-              if (value === 'add-new-category') {
-                setShowQuickCategoryAdd(true);
-              } else {
-                setNewItemCategory(value);
-              }
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="add-new-category" className="text-primary font-medium">
-                  <div className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add New Category
-                  </div>
-                </SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    <div className="flex items-center gap-2">
-                      {category.id === 'pfand' && <Recycle className="text-green-600" />}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-soft border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add New Item
+            </CardTitle>
+            <CardDescription>Add a new grocery item to your list</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                placeholder="Item name"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && addItem()}
+              />
+            </div>
+            <div className="space-y-2">
+              <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
                       {category.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={addItem} variant="gradient" className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={addItem} className="w-full">
               Add Item
             </Button>
-          </div>
-          
-          {/* Quick Add Category Form */}
-          {showQuickCategoryAdd && (
-            <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 animate-fade-in">
-              <h4 className="font-medium mb-3 text-primary">Quick Add New Category</h4>
-              <div className="flex gap-3">
-                <Input
-                  placeholder="Category name (e.g., Fruits, Vegetables)"
-                  value={quickCategoryName}
-                  onChange={(e) => setQuickCategoryName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addQuickCategory()}
-                  className="flex-1"
-                />
-                <Button onClick={addQuickCategory} variant="success" size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setShowQuickCategoryAdd(false);
-                    setQuickCategoryName('');
-                  }} 
-                  variant="outline" 
-                  size="sm"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Your Items ({items.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Search Bar */}
-          <div className="mb-4">
+        <Card className="shadow-soft border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Your Items
+            </CardTitle>
+            <CardDescription>
+              {items.length} items • Search to filter
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <Input
               placeholder="Search items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
             />
-          </div>
-          {items.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No items yet. Add your first grocery item above!</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedItems).map(([category, categoryItems]) => (
-                <div key={category}>
-                  <h3 className="font-semibold text-lg text-foreground mb-3 flex items-center gap-2">
-                    {category === 'Pfand' && <Recycle className="h-5 w-5 text-green-600" />}
-                    {category}
-                    <span className="text-sm text-muted-foreground font-normal">
-                      ({categoryItems.length} item{categoryItems.length !== 1 ? 's' : ''})
-                    </span>
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {categoryItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
-                      >
-                        <div>
-                          <h4 className="font-medium text-foreground">{item.name}</h4>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteItem(item.id)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {Object.keys(groupedItems).length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  {searchQuery ? "No items match your search" : "No items yet"}
+                </p>
+              ) : (
+                Object.entries(groupedItems).map(([categoryName, categoryItems]) => (
+                  <div key={categoryName} className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      {categoryName === 'Pfand' ? (
+                        <Recycle className="h-4 w-4" />
+                      ) : (
+                        <Package className="h-4 w-4" />
+                      )}
+                      {categoryName} ({categoryItems.length})
+                    </div>
+                    <div className="space-y-1 pl-6">
+                      {categoryItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-2 bg-background rounded border border-border/50"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                          <span className="font-medium">{item.name}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteItem(item.id)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
-}
+};

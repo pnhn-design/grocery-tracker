@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown, Tag } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, Store, Database, ChevronDown, Tag, LogOut, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,6 +8,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/hooks/useAuth';
+import { migrateLocalStorageToSupabase, hasExistingData } from '@/lib/migration';
+import { useToast } from '@/hooks/use-toast';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
@@ -17,6 +21,54 @@ const navigation = [
 
 export function Layout() {
   const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
+  const { toast } = useToast();
+  const [showMigration, setShowMigration] = useState(false);
+
+  useEffect(() => {
+    if (user && !loading) {
+      // Check if user has existing data and show migration option
+      hasExistingData().then(exists => {
+        if (!exists) {
+          const hasLocalData = 
+            localStorage.getItem('groceryCategories') ||
+            localStorage.getItem('groceryItems') ||
+            localStorage.getItem('groceryMarkets') ||
+            localStorage.getItem('groceryPurchases');
+          
+          if (hasLocalData) {
+            setShowMigration(true);
+          }
+        }
+      });
+    }
+  }, [user, loading]);
+
+  const handleMigration = async () => {
+    try {
+      await migrateLocalStorageToSupabase();
+      toast({
+        title: "Migration Complete",
+        description: "Your data has been successfully migrated to the cloud!",
+      });
+      setShowMigration(false);
+    } catch (error) {
+      toast({
+        title: "Migration Failed",
+        description: "There was an error migrating your data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary">
       <nav className="bg-card border-b shadow-soft">
@@ -70,6 +122,18 @@ export function Layout() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              {showMigration && (
+                <Button onClick={handleMigration} variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Migrate Data
+                </Button>
+              )}
+              <Button onClick={signOut} variant="outline" size="sm">
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
             </div>
           </div>
         </div>

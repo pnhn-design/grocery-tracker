@@ -1,57 +1,80 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Tag, Recycle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Trash2, Recycle, Plus, Search } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Category {
   id: string;
   name: string;
-  createdAt: string;
+  created_at: string;
 }
 
-const PFAND_CATEGORY: Category = {
-  id: 'pfand',
-  name: 'Pfand',
-  createdAt: 'fixed',
-};
+const PFAND_CATEGORY_NAME = 'Pfand';
 
-export function CategoriesPage() {
+export const CategoriesPage = () => {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
-  // Helper to ensure Pfand is always present
-  const withPfand = (cats: Category[]) => {
-    const hasPfand = cats.some(cat => cat.id === PFAND_CATEGORY.id || cat.name.toLowerCase() === 'pfand');
-    if (hasPfand) {
-      // Replace any existing Pfand with the fixed one (by id or name)
-      return [
-        PFAND_CATEGORY,
-        ...cats.filter(cat => cat.id !== PFAND_CATEGORY.id && cat.name.toLowerCase() !== 'pfand'),
-      ];
-    }
-    return [PFAND_CATEGORY, ...cats];
-  };
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedCategories = localStorage.getItem('grocery-categories');
-    if (savedCategories) {
-      setCategories(withPfand(JSON.parse(savedCategories)));
-    } else {
-      setCategories([PFAND_CATEGORY]);
+    if (user) {
+      loadCategories();
     }
-  }, []);
+  }, [user]);
 
-  const saveCategories = (updatedCategories: Category[]) => {
-    // Never save without Pfand
-    const cats = withPfand(updatedCategories);
-    localStorage.setItem('grocery-categories', JSON.stringify(cats.filter(cat => cat.id !== PFAND_CATEGORY.id)));
-    setCategories(cats);
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('name');
+
+      if (error) throw error;
+
+      const categoriesData = data || [];
+      
+      // Ensure Pfand category exists
+      if (!categoriesData.find(cat => cat.name === PFAND_CATEGORY_NAME)) {
+        await createPfandCategory();
+        loadCategories(); // Reload to include Pfand
+        return;
+      }
+
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load categories",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const addCategory = () => {
+  const createPfandCategory = async () => {
+    const { error } = await supabase
+      .from('categories')
+      .insert({
+        user_id: user?.id,
+        name: PFAND_CATEGORY_NAME,
+      });
+
+    if (error && !error.message.includes('duplicate')) {
+      console.error('Error creating Pfand category:', error);
+    }
+  };
+
+  const addCategory = async () => {
     if (!newCategoryName.trim()) {
       toast({
         title: "Error",
@@ -61,126 +84,185 @@ export function CategoriesPage() {
       return;
     }
 
-    // Prevent duplicate or reserved name 'Pfand'
-    if (newCategoryName.trim().toLowerCase() === 'pfand' || categories.some(cat => cat.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+    if (newCategoryName.toLowerCase() === PFAND_CATEGORY_NAME.toLowerCase()) {
       toast({
         title: "Error",
-        description: "This category already exists",
+        description: "Pfand category already exists",
         variant: "destructive",
       });
       return;
     }
 
-    const newCategory: Category = {
-      id: Date.now().toString(),
-      name: newCategoryName.trim(),
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .insert({
+          user_id: user?.id,
+          name: newCategoryName.trim(),
+        });
 
-    const updatedCategories = [...categories, newCategory];
-    saveCategories(updatedCategories);
-    setNewCategoryName('');
-    
-    toast({
-      title: "Success",
-      description: "Category added successfully!",
-    });
-  };
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: "Error",
+            description: "A category with this name already exists",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
-  const deleteCategory = (id: string) => {
-    if (id === PFAND_CATEGORY.id) {
+      toast({
+        title: "Success",
+        description: "Category added successfully",
+      });
+
+      setNewCategoryName("");
+      loadCategories();
+    } catch (error) {
+      console.error('Error adding category:', error);
       toast({
         title: "Error",
-        description: 'The "Pfand" category cannot be deleted.',
+        description: "Failed to add category",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteCategory = async (id: string, name: string) => {
+    if (name === PFAND_CATEGORY_NAME) {
+      toast({
+        title: "Error",
+        description: "Cannot delete the Pfand category",
         variant: "destructive",
       });
       return;
     }
-    const updatedCategories = categories.filter(category => category.id !== id);
-    saveCategories(updatedCategories);
-    
-    toast({
-      title: "Category deleted",
-      description: "Category removed from your list",
-    });
+
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category deleted successfully",
+      });
+
+      loadCategories();
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete category",
+        variant: "destructive",
+      });
+    }
   };
+
+  const filteredCategories = categories.filter(category =>
+    category.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading categories...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-foreground">Categories</h1>
         <p className="text-muted-foreground">Manage your grocery item categories</p>
       </div>
 
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Add new category
-          </CardTitle>
-          <CardDescription>
-            Create categories to organize your grocery items
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-4">
-            <Input
-              placeholder="Category name (e.g., Fruits, Vegetables)"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addCategory()}
-              className="flex-1"
-            />
-            <Button onClick={addCategory} variant="gradient">
-              <Plus className="h-4 w-4 mr-2" />
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-soft border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add New Category
+            </CardTitle>
+            <CardDescription>Create a new category for your grocery items</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                placeholder="Category name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && addCategory()}
+              />
+            </div>
+            <Button onClick={addCategory} className="w-full">
               Add Category
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5" />
-            Your Categories ({categories.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {categories.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No categories yet. Add your first category above!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  className="flex items-center justify-between p-4 border rounded-lg bg-background hover:shadow-soft transition-all"
-                >
-                  <div className="flex items-center gap-2">
-                    {category.id === PFAND_CATEGORY.id && (
-                      <Recycle className="text-green-600" />
+        <Card className="shadow-soft border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Your Categories
+            </CardTitle>
+            <CardDescription>
+              {categories.length} categories • Search to filter
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              placeholder="Search categories..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
+            />
+            
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredCategories.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  {searchQuery ? "No categories match your search" : "No categories yet"}
+                </p>
+              ) : (
+                filteredCategories.map((category) => (
+                  <div
+                    key={category.id}
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border border-border/50"
+                  >
+                    <div className="flex items-center gap-2">
+                      {category.name === PFAND_CATEGORY_NAME ? (
+                        <Recycle className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <div className="h-4 w-4 rounded-full bg-primary/20" />
+                      )}
+                      <span className="font-medium">{category.name}</span>
+                    </div>
+                    {category.name !== PFAND_CATEGORY_NAME && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deleteCategory(category.id, category.name)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
-                    <h3 className="font-medium text-foreground">{category.name}</h3>
                   </div>
-                  {category.id !== PFAND_CATEGORY.id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteCategory(category.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
-}
+};
