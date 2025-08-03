@@ -396,7 +396,6 @@ export function PurchasesPage() {
         item_id: item.itemId,
         quantity: item.quantity,
         unit_price: item.unitPrice,
-        total_price: item.totalPrice,
       }));
 
       const { error: itemsError } = await supabase
