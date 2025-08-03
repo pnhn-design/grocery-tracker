@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PurchaseItem {
   itemId: string;
@@ -20,6 +22,7 @@ interface Purchase {
   items: PurchaseItem[];
   totalAmount: number;
   createdAt: string;
+  marketName?: string;
 }
 
 interface GroceryItem {
@@ -28,59 +31,123 @@ interface GroceryItem {
   category?: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 export function Dashboard() {
+  const { user } = useAuth();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [items, setItems] = useState<GroceryItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedItem, setSelectedItem] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+
+  const loadData = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      
+      // Load categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+      
+      if (categoriesError) throw categoriesError;
+      setCategories(categoriesData || []);
+
+      // Load items with categories
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('items')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+      
+      if (itemsError) throw itemsError;
+      
+      const itemsWithCategories = (itemsData || []).map(item => {
+        const category = categoriesData?.find(cat => cat.id === item.category_id);
+        return {
+          id: item.id,
+          name: item.name,
+          category: category?.name || 'Uncategorized'
+        };
+      });
+      setItems(itemsWithCategories);
+
+      // Load purchases with their items and market info
+      const { data: purchasesData, error: purchasesError } = await supabase
+        .from('purchases')
+        .select(`
+          *,
+          markets:market_id (
+            name,
+            location
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false });
+      
+      if (purchasesError) throw purchasesError;
+
+      // For each purchase, get its items
+      const purchasesWithItems = await Promise.all((purchasesData || []).map(async (purchase) => {
+        const { data: purchaseItems, error: itemsError } = await supabase
+          .from('purchase_items')
+          .select(`
+            *,
+            items:item_id (
+              name
+            )
+          `)
+          .eq('purchase_id', purchase.id);
+        
+        if (itemsError) throw itemsError;
+
+        const items = (purchaseItems || []).map(pi => ({
+          itemId: pi.item_id,
+          itemName: pi.items?.name || 'Unknown Item',
+          quantity: Number(pi.quantity),
+          unitPrice: Number(pi.unit_price),
+          totalPrice: Number(pi.total_price || (pi.quantity * pi.unit_price))
+        }));
+
+        return {
+          id: purchase.id,
+          date: purchase.date,
+          items,
+          totalAmount: Number(purchase.total_amount || 0),
+          createdAt: purchase.created_at,
+          marketName: purchase.markets?.name || 'Unknown Market'
+        };
+      }));
+
+      setPurchases(purchasesWithItems);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const savedPurchases = localStorage.getItem('grocery-purchases');
-    const savedItems = localStorage.getItem('grocery-items');
-    
-    if (savedPurchases) {
-      const parsed = JSON.parse(savedPurchases);
-      // Handle both old and new format
-      if (parsed.length > 0 && parsed[0].itemId) {
-        // Old format, convert it
-        const converted = convertOldPurchases(parsed);
-        setPurchases(converted);
-      } else {
-        setPurchases(parsed);
-      }
+    if (user) {
+      loadData();
     }
-    if (savedItems) {
-      setItems(JSON.parse(savedItems));
-    }
-  }, []);
+  }, [user]);
 
-  const convertOldPurchases = (oldPurchases: any[]): Purchase[] => {
-    const grouped = oldPurchases.reduce((acc, old) => {
-      const dateKey = old.date.split('T')[0];
-      if (!acc[dateKey]) {
-        acc[dateKey] = {
-          id: `converted-${dateKey}-${Date.now()}`,
-          date: old.date,
-          items: [],
-          totalAmount: 0,
-          createdAt: old.createdAt
-        };
-      }
-      
-      acc[dateKey].items.push({
-        itemId: old.itemId,
-        itemName: old.itemName,
-        quantity: 1,
-        unitPrice: old.amount,
-        totalPrice: old.amount
-      });
-      acc[dateKey].totalAmount += old.amount;
-      
-      return acc;
-    }, {} as Record<string, Purchase>);
-    
-    return Object.values(grouped);
-  };
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading dashboard...</div>
+      </div>
+    );
+  }
 
   // Daily spending data
   const dailySpending = useMemo(() => {
