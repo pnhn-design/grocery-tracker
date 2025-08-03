@@ -11,49 +11,60 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Store } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface GroceryItem {
   id: string;
   name: string;
-  category?: string;
-  createdAt: string;
+  category_id?: string;
+  created_at: string;
 }
 
-interface PurchaseItem {
-  itemId: string;
-  itemName: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
-interface Purchase {
+interface Category {
   id: string;
-  date: string;
-  marketId?: string;
-  marketName?: string;
-  items: PurchaseItem[];
-  totalAmount: number;
-  createdAt: string;
+  name: string;
+  created_at: string;
 }
 
 interface Market {
   id: string;
   name: string;
   location?: string;
-  createdAt: string;
+  created_at: string;
 }
 
-const PFAND_CATEGORY = { id: 'pfand', name: 'Pfand', createdAt: 'fixed' };
+interface Purchase {
+  id: string;
+  date: string;
+  market_id?: string;
+  total_amount: number;
+  created_at: string;
+}
+
+interface PurchaseItem {
+  id: string;
+  purchase_id: string;
+  item_id: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  created_at: string;
+  items?: {
+    name: string;
+  };
+}
 
 export function PurchasesPage() {
   const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
-  const [categories, setCategories] = useState<{ id: string; name: string; }[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [markets, setMarkets] = useState<Market[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [purchaseItems, setPurchaseItems] = useState<Record<string, PurchaseItem[]>>({});
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedMarketId, setSelectedMarketId] = useState('');
-  const [currentItems, setCurrentItems] = useState<PurchaseItem[]>([]);
+  const [currentItems, setCurrentItems] = useState<{ itemId: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number; }[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // For adding new item to current purchase
   const [selectedItemId, setSelectedItemId] = useState('');
@@ -78,77 +89,122 @@ export function PurchasesPage() {
   // Add state for quick category adding
   const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
   const [quickCategoryName, setQuickCategoryName] = useState('');
-  
+
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedItems = localStorage.getItem('grocery-items');
-    const savedCategories = localStorage.getItem('grocery-categories');
-    const savedMarkets = localStorage.getItem('grocery-markets');
-    const savedPurchases = localStorage.getItem('grocery-purchases');
-    
-    if (savedItems) {
-      setGroceryItems(JSON.parse(savedItems));
+    if (user) {
+      loadData();
     }
-    let loadedCategories = savedCategories ? JSON.parse(savedCategories) : [];
-    // Always include Pfand
-    if (!loadedCategories.some(cat => cat.id === PFAND_CATEGORY.id || cat.name.toLowerCase() === 'pfand')) {
-      loadedCategories = [PFAND_CATEGORY, ...loadedCategories];
-    } else {
-      loadedCategories = [PFAND_CATEGORY, ...loadedCategories.filter(cat => cat.id !== PFAND_CATEGORY.id && cat.name.toLowerCase() !== 'pfand')];
-    }
-    setCategories(loadedCategories);
-    if (savedMarkets) {
-      setMarkets(JSON.parse(savedMarkets));
-    }
-    if (savedPurchases) {
-      // Convert old format to new format if needed
-      const parsed = JSON.parse(savedPurchases);
-      if (parsed.length > 0 && parsed[0].itemId) {
-        // Old format, convert it
-        const converted = convertOldPurchases(parsed);
-        setPurchases(converted);
-        localStorage.setItem('grocery-purchases', JSON.stringify(converted));
-      } else {
-        setPurchases(parsed);
-      }
-    }
-  }, []);
+  }, [user]);
 
-  const convertOldPurchases = (oldPurchases: any[]): Purchase[] => {
-    const grouped = oldPurchases.reduce((acc, old) => {
-      const dateKey = old.date.split('T')[0]; // Group by date only
-      if (!acc[dateKey]) {
-        acc[dateKey] = {
-          id: `converted-${dateKey}`,
-          date: old.date,
-          items: [],
-          totalAmount: 0,
-          createdAt: old.createdAt
-        };
+  const loadData = async () => {
+    try {
+      const [itemsResult, categoriesResult, marketsResult, purchasesResult] = await Promise.all([
+        supabase.from('items').select('*').eq('user_id', user?.id).order('name'),
+        supabase.from('categories').select('*').eq('user_id', user?.id).order('name'),
+        supabase.from('markets').select('*').eq('user_id', user?.id).order('name'),
+        supabase.from('purchases').select('*').eq('user_id', user?.id).order('date', { ascending: false })
+      ]);
+
+      if (itemsResult.error) throw itemsResult.error;
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (marketsResult.error) throw marketsResult.error;
+      if (purchasesResult.error) throw purchasesResult.error;
+
+      setGroceryItems(itemsResult.data || []);
+      setCategories(categoriesResult.data || []);
+      setMarkets(marketsResult.data || []);
+      setPurchases(purchasesResult.data || []);
+
+      // Load purchase items for all purchases
+      if (purchasesResult.data && purchasesResult.data.length > 0) {
+        const purchaseItemsResult = await supabase
+          .from('purchase_items')
+          .select(`
+            *,
+            items (name)
+          `)
+          .in('purchase_id', purchasesResult.data.map(p => p.id));
+
+        if (purchaseItemsResult.error) throw purchaseItemsResult.error;
+
+        const groupedItems = (purchaseItemsResult.data || []).reduce((acc, item) => {
+          if (!acc[item.purchase_id]) {
+            acc[item.purchase_id] = [];
+          }
+          acc[item.purchase_id].push(item);
+          return acc;
+        }, {} as Record<string, any[]>);
+
+        setPurchaseItems(groupedItems);
       }
-      
-      acc[dateKey].items.push({
-        itemId: old.itemId,
-        itemName: old.itemName,
-        quantity: 1,
-        unitPrice: old.amount,
-        totalPrice: old.amount
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load data",
+        variant: "destructive",
       });
-      acc[dateKey].totalAmount += old.amount;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addQuickCategory = async () => {
+    if (!quickCategoryName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a category name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          user_id: user?.id,
+          name: quickCategoryName.trim(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: "Error",
+            description: "A category with this name already exists",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      setCategories([...categories, data]);
+      setQuickItemCategoryId(data.id);
+      setQuickCategoryName('');
+      setShowQuickAddCategory(false);
       
-      return acc;
-    }, {} as Record<string, Purchase>);
-    
-    return Object.values(grouped);
+      toast({
+        title: "Success",
+        description: "Category added and selected!",
+      });
+    } catch (error) {
+      console.error('Error adding category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add category",
+        variant: "destructive",
+      });
+    }
   };
 
-  const savePurchases = (updatedPurchases: Purchase[]) => {
-    localStorage.setItem('grocery-purchases', JSON.stringify(updatedPurchases));
-    setPurchases(updatedPurchases);
-  };
-
-  const addQuickItem = () => {
+  const addQuickItem = async () => {
     if (!quickItemName.trim()) {
       toast({
         title: "Error",
@@ -158,33 +214,51 @@ export function PurchasesPage() {
       return;
     }
 
-    // Find category name from ID
-    const selectedCategory = categories.find(cat => cat.id === quickItemCategoryId);
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .insert({
+          user_id: user?.id,
+          name: quickItemName.trim(),
+          category_id: quickItemCategoryId || null,
+        })
+        .select()
+        .single();
 
-    const newItem: GroceryItem = {
-      id: Date.now().toString(),
-      name: quickItemName.trim(),
-      category: selectedCategory?.name || undefined,
-      createdAt: new Date().toISOString(),
-    };
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: "Error",
+            description: "An item with this name already exists",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
-    const updatedItems = [...groceryItems, newItem];
-    localStorage.setItem('grocery-items', JSON.stringify(updatedItems));
-    setGroceryItems(updatedItems);
-    
-    // Auto-select the new item
-    setSelectedItemId(newItem.id);
-    setQuickItemName('');
-    setQuickItemCategoryId('');
-    setShowQuickAdd(false);
-    
-    toast({
-      title: "Success",
-      description: "Item added and selected!",
-    });
+      setGroceryItems([...groceryItems, data]);
+      setSelectedItemId(data.id);
+      setQuickItemName('');
+      setQuickItemCategoryId('');
+      setShowQuickAdd(false);
+      
+      toast({
+        title: "Success",
+        description: "Item added and selected!",
+      });
+    } catch (error) {
+      console.error('Error adding item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item",
+        variant: "destructive",
+      });
+    }
   };
 
-  const addQuickMarket = () => {
+  const addQuickMarket = async () => {
     if (!quickMarketName.trim()) {
       toast({
         title: "Error",
@@ -194,25 +268,48 @@ export function PurchasesPage() {
       return;
     }
 
-    const newMarket: Market = {
-      id: Date.now().toString(),
-      name: quickMarketName.trim(),
-      location: quickMarketLocation.trim() || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const { data, error } = await supabase
+        .from('markets')
+        .insert({
+          user_id: user?.id,
+          name: quickMarketName.trim(),
+          location: quickMarketLocation.trim() || null,
+        })
+        .select()
+        .single();
 
-    const updatedMarkets = [...markets, newMarket];
-    localStorage.setItem('grocery-markets', JSON.stringify(updatedMarkets));
-    setMarkets(updatedMarkets);
-    // Auto-select the new market
-    setSelectedMarketId(newMarket.id);
-    setQuickMarketName('');
-    setQuickMarketLocation('');
-    setShowQuickAddMarket(false);
-    toast({
-      title: "Success",
-      description: "Market added and selected!",
-    });
+      if (error) {
+        if (error.message.includes('duplicate')) {
+          toast({
+            title: "Error",
+            description: "A market with this name already exists",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      setMarkets([...markets, data]);
+      setSelectedMarketId(data.id);
+      setQuickMarketName('');
+      setQuickMarketLocation('');
+      setShowQuickAddMarket(false);
+      
+      toast({
+        title: "Success",
+        description: "Market added and selected!",
+      });
+    } catch (error) {
+      console.error('Error adding market:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add market",
+        variant: "destructive",
+      });
+    }
   };
 
   const addItemToCurrentPurchase = () => {
@@ -232,7 +329,7 @@ export function PurchasesPage() {
     const price = parseFloat(unitPrice);
     const total = qty * price;
 
-    const newItem: PurchaseItem = {
+    const newItem = {
       itemId: selectedItemId,
       itemName: selectedItem.name,
       quantity: qty,
@@ -266,7 +363,7 @@ export function PurchasesPage() {
     setCurrentItems(currentItems.filter((_, i) => i !== index));
   };
 
-  const savePurchase = () => {
+  const savePurchase = async () => {
     if (currentItems.length === 0) {
       toast({
         title: "Error",
@@ -276,44 +373,94 @@ export function PurchasesPage() {
       return;
     }
 
-    const totalAmount = currentItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const selectedMarket = markets.find(m => m.id === selectedMarketId);
+    try {
+      const totalAmount = currentItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
-    const newPurchase: Purchase = {
-      id: Date.now().toString(),
-      date: selectedDate.toISOString(),
-      marketId: selectedMarketId || undefined,
-      marketName: selectedMarket?.name || undefined,
-      items: currentItems,
-      totalAmount,
-      createdAt: new Date().toISOString(),
-    };
+      // First create the purchase
+      const { data: purchase, error: purchaseError } = await supabase
+        .from('purchases')
+        .insert({
+          user_id: user?.id,
+          date: selectedDate.toISOString().split('T')[0],
+          market_id: selectedMarketId || null,
+          total_amount: totalAmount,
+        })
+        .select()
+        .single();
 
-    const updatedPurchases = [...purchases, newPurchase];
-    savePurchases(updatedPurchases);
-    
-    setCurrentItems([]);
-    setSelectedMarketId('');
-    setSelectedDate(new Date());
-    
-    toast({
-      title: "Success",
-      description: "Purchase recorded successfully!",
-    });
+      if (purchaseError) throw purchaseError;
+
+      // Then create the purchase items
+      const purchaseItemsToInsert = currentItems.map(item => ({
+        purchase_id: purchase.id,
+        item_id: item.itemId,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        total_price: item.totalPrice,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('purchase_items')
+        .insert(purchaseItemsToInsert);
+
+      if (itemsError) throw itemsError;
+
+      // Reload data to show the new purchase
+      await loadData();
+      
+      setCurrentItems([]);
+      setSelectedMarketId('');
+      setSelectedDate(new Date());
+      
+      toast({
+        title: "Success",
+        description: "Purchase recorded successfully!",
+      });
+    } catch (error) {
+      console.error('Error saving purchase:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save purchase",
+        variant: "destructive",
+      });
+    }
   };
 
-  const deletePurchase = (id: string) => {
-    const updatedPurchases = purchases.filter(purchase => purchase.id !== id);
-    savePurchases(updatedPurchases);
-    
-    toast({
-      title: "Purchase deleted",
-      description: "Purchase removed from your records",
-    });
+  const deletePurchase = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('purchases')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      await loadData();
+      
+      toast({
+        title: "Purchase deleted",
+        description: "Purchase removed from your records",
+      });
+    } catch (error) {
+      console.error('Error deleting purchase:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete purchase",
+        variant: "destructive",
+      });
+    }
   };
 
-  const sortedPurchases = purchases.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const currentTotal = currentItems.reduce((sum, item) => sum + item.totalPrice, 0);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading purchases...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -560,21 +707,7 @@ export function PurchasesPage() {
                               });
                               return;
                             }
-                            const newCategory = {
-                              id: Date.now().toString(),
-                              name: quickCategoryName.trim(),
-                              createdAt: new Date().toISOString(),
-                            };
-                            const updatedCategories = [...categories, newCategory];
-                            localStorage.setItem('grocery-categories', JSON.stringify(updatedCategories));
-                            setCategories(updatedCategories);
-                            setQuickItemCategoryId(newCategory.id);
-                            setQuickCategoryName('');
-                            setShowQuickAddCategory(false);
-                            toast({
-                              title: "Success",
-                              description: "Category added and selected!",
-                            });
+                             addQuickCategory();
                           }}
                         >
                           <Plus className="h-4 w-4 mr-1" />
@@ -765,7 +898,9 @@ export function PurchasesPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {sortedPurchases.map((purchase) => (
+              {purchases.map((purchase) => {
+                const purchaseItemsData = purchaseItems[purchase.id] || [];
+                return (
                 <div
                   key={purchase.id}
                   className="border rounded-lg p-4 bg-background hover:shadow-soft transition-all"
@@ -777,20 +912,20 @@ export function PurchasesPage() {
                         {format(new Date(purchase.date), "PPP")}
                       </h3>
                       <div className="flex items-center mt-1" style={{ gap: 6 }}>
-                        {purchase.marketName && (
+                        {purchase.market_id && markets.find(m => m.id === purchase.market_id) && (
                           <Badge variant="secondary" className="bg-muted text-muted-foreground font-normal flex items-center gap-1">
                             <Store className="h-3 w-3 mr-1" />
-                            {purchase.marketName}
+                            {markets.find(m => m.id === purchase.market_id)?.name}
                           </Badge>
                         )}
                         <Badge variant="secondary" className="bg-muted text-muted-foreground font-normal">
-                          {purchase.items.length} item{purchase.items.length !== 1 ? 's' : ''}
+                          {purchaseItemsData.length} item{purchaseItemsData.length !== 1 ? 's' : ''}
                         </Badge>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xl font-semibold text-primary">
-                        €{purchase.totalAmount.toFixed(2)}
+                        €{purchase.total_amount.toFixed(2)}
                       </span>
                       <Button
                         variant="ghost"
@@ -804,17 +939,17 @@ export function PurchasesPage() {
                   </div>
                   {/* Items grid remains unchanged */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {purchase.items.map((item, index) => (
+                    {purchaseItemsData.map((item, index) => (
                       <div key={index} className="text-sm bg-secondary/30 rounded p-2">
-                        <div className="font-medium">{item.itemName}</div>
+                        <div className="font-medium">{item.items?.name || 'Unknown Item'}</div>
                         <div className="text-muted-foreground">
-                          {item.quantity} × €{item.unitPrice.toFixed(2)} = €{item.totalPrice.toFixed(2)}
+                          {item.quantity} × €{item.unit_price.toFixed(2)} = €{item.total_price.toFixed(2)}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </CardContent>
